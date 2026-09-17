@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kreyptedd — Contacts</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap { max-width: 480px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+  .row:last-child { border-bottom:none; }
+  .row span.name { font-weight:600; }
+  .row .actions button { width:auto; margin:0 0 0 8px; padding:6px 10px; font-size:12px; }
+  .code-box { display:flex; gap:8px; }
+  .code-box input { flex:1; }
+  .code-box button { width:auto; margin:0; }
+  h2 { font-size:14px; color:var(--text-dim); margin:24px 0 8px; text-transform:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Contacts</h1>
+  <p class="sub">Ton code : <strong id="myCode">...</strong></p>
+
+  <div class="panel">
+    <div class="code-box">
+      <input type="text" id="codeInput" placeholder="Code du contact (ex: A1B2C3D4)">
+      <button id="addBtn">Ajouter</button>
+    </div>
+    <p class="error" id="errorMsg"></p>
+  </div>
+
+  <h2>Demandes reçues</h2>
+  <div class="panel" id="incoming"><p class="sub">Aucune demande.</p></div>
+
+  <h2>Mes contacts</h2>
+  <div class="panel" id="contactList"><p class="sub">Aucun contact.</p></div>
+
+  <p class="switch"><a href="app.html">Retour aux conversations</a></p>
+</div>
+
+<script>
+const SUPABASE_URL = "https://TON-PROJET.supabase.co";
+const SUPABASE_ANON_KEY = "TON_ANON_KEY";
+const token = localStorage.getItem("session_token");
+if (!token) window.location.href = "login.html";
+
+async function api(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    body: JSON.stringify(body || {})
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+
+document.getElementById("addBtn").addEventListener("click", async () => {
+  const code = document.getElementById("codeInput").value.trim().toUpperCase();
+  const errorMsg = document.getElementById("errorMsg");
+  errorMsg.style.display = "none";
+  if (!code) return;
+  const { ok, data } = await api("contact-request", { code });
+  if (!ok) { errorMsg.textContent = data.error || "Code invalide."; errorMsg.style.display = "block"; return; }
+  document.getElementById("codeInput").value = "";
+  loadAll();
+});
+
+async function respond(requestId, accept) {
+  await api("contact-respond", { request_id: requestId, accept });
+  loadAll();
+}
+
+async function loadAll() {
+  const { data } = await api("contacts-list", {});
+  document.getElementById("myCode").textContent = data.my_code || "?";
+
+  const incoming = document.getElementById("incoming");
+  incoming.innerHTML = "";
+  if (!data.incoming || data.incoming.length === 0) {
+    incoming.innerHTML = '<p class="sub">Aucune demande.</p>';
+  } else {
+    data.incoming.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<span class="name">${r.from_username}</span>
+        <span class="actions">
+          <button onclick="respond('${r.id}', true)">Accepter</button>
+          <button onclick="respond('${r.id}', false)">Refuser</button>
+        </span>`;
+      incoming.appendChild(row);
+    });
+  }
+
+  const list = document.getElementById("contactList");
+  list.innerHTML = "";
+  if (!data.contacts || data.contacts.length === 0) {
+    list.innerHTML = '<p class="sub">Aucun contact.</p>';
+  } else {
+    data.contacts.forEach(c => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<span class="name">${c.username}</span>`;
+      list.appendChild(row);
+    });
+  }
+}
+window.respond = respond;
+loadAll();
+</script>
+</body>
+</html>

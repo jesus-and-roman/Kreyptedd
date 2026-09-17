@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kreyptedd</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { display:flex; height:100vh; margin:0; }
+  .sidebar { width:260px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; }
+  .sidebar-header { padding:14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .sidebar-header strong { color:var(--accent); }
+  .convo { padding:12px 14px; border-bottom:1px solid var(--border); cursor:pointer; }
+  .convo:hover { background:var(--bg); }
+  .convo.active { background:var(--bg); border-left:2px solid var(--accent); }
+  .convo .lock { color:var(--accent); font-size:11px; }
+  .main { flex:1; display:flex; flex-direction:column; }
+  .thread { flex:1; overflow-y:auto; padding:16px; }
+  .msg { max-width:60%; padding:8px 12px; border-radius:4px; margin-bottom:8px; background:var(--panel); border:1px solid var(--border); }
+  .msg.mine { margin-left:auto; background:#2a3138; border-color:var(--accent-dim); }
+  .composer { display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); }
+  .composer input { flex:1; }
+  .composer button { width:auto; margin:0; }
+  .topbar { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:10; }
+  .modal { background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:24px; width:320px; }
+  #nipGrid { width:100%; height:120px; background:var(--bg); border:1px solid var(--border); margin:10px 0; cursor:crosshair; }
+  .linkbtn { background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <strong>Kreyptedd</strong>
+    <a href="contacts.html" style="font-size:12px">Contacts</a>
+  </div>
+  <div id="convoList"></div>
+  <div style="padding:12px;border-top:1px solid var(--border)">
+    <button id="newConvoBtn" class="ghost">Nouvelle conversation</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <span id="convoTitle">Sélectionne une conversation</span>
+    <span>
+      <button class="linkbtn" id="deleteMenuBtn">Options de suppression</button>
+    </span>
+  </div>
+  <div class="thread" id="thread"></div>
+  <div class="composer">
+    <input type="text" id="msgInput" placeholder="Écrire un message...">
+    <button id="sendBtn">Envoyer</button>
+  </div>
+</div>
+
+<!-- Modal NIP -->
+<div class="modal-bg" id="nipModal">
+  <div class="modal">
+    <h1 style="font-size:16px">Code NIP (12 chiffres)</h1>
+    <p class="sub">Requis à chaque connexion pour déchiffrer tes conversations protégées. Jamais sauvegardé.</p>
+    <input type="password" id="nipInput" maxlength="12" placeholder="123456789012">
+    <button id="nipConfirm">Confirmer</button>
+    <p style="text-align:center;margin-top:10px">
+      <button class="linkbtn" id="randomizeToggle">Randomiser un nouveau NIP avec la souris</button>
+    </p>
+    <div id="randomizeArea" style="display:none">
+      <canvas id="nipGrid" width="280" height="120"></canvas>
+      <p class="sub" id="randomHint">Bouge la souris sur la grille pour générer un code.</p>
+      <input type="text" id="randomResult" readonly>
+      <label>Confirme le nouveau NIP</label>
+      <input type="password" id="randomConfirmInput" maxlength="12">
+      <button id="randomSaveBtn" class="ghost">Utiliser ce NIP</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = "https://TON-PROJET.supabase.co";
+const SUPABASE_ANON_KEY = "TON_ANON_KEY";
+const token = localStorage.getItem("session_token");
+if (!token) window.location.href = "login.html";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { headers: { Authorization: `Bearer ${token}` } }
+});
+
+let nip = null;               // en mémoire seulement, jamais localStorage
+let currentConvo = null;
+let convos = [];
+
+async function api(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    body: JSON.stringify(body || {})
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+
+// ---------- NIP : saisie obligatoire à chaque session ----------
+document.getElementById("nipConfirm").addEventListener("click", () => {
+  const val = document.getElementById("nipInput").value;
+  if (!/^\d{12}$/.test(val)) { alert("Le NIP doit contenir exactement 12 chiffres."); return; }
+  nip = val;
+  document.getElementById("nipModal").style.display = "none";
+  loadConversations();
+});
+
+// ---------- Randomisation du NIP par grille souris ----------
+document.getElementById("randomizeToggle").addEventListener("click", () => {
+  document.getElementById("randomizeArea").style.display = "block";
+});
+
+const canvas = document.getElementById("nipGrid");
+const ctx = canvas.getContext("2d");
+let entropy = [];
+canvas.addEventListener("mousemove", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor(e.clientX - rect.left);
+  const y = Math.floor(e.clientY - rect.top);
+  const t = performance.now();
+  entropy.push(x * 31 + y * 17 + t);
+  ctx.fillStyle = "#a9c9e8";
+  ctx.fillRect(x, y, 2, 2);
+  if (entropy.length >= 40) {
+    const digest = entropy.reduce((acc, v) => (acc * 33 + v) % 1_000_000_000_000, 7);
+    const code = String(digest).padStart(12, "0").slice(0, 12);
+    document.getElementById("randomResult").value = code;
+  }
+});
+
+document.getElementById("randomSaveBtn").addEventListener("click", async () => {
+  const generated = document.getElementById("randomResult").value;
+  const confirmVal = document.getElementById("randomConfirmInput").value;
+  if (!generated) { alert("Bouge la souris sur la grille d'abord."); return; }
+  if (confirmVal !== generated) { alert("La confirmation ne correspond pas au NIP généré."); return; }
+  nip = generated;
+  document.getElementById("nipModal").style.display = "none";
+  loadConversations();
+});
+
+// ---------- Crypto : dérivation de clé AES-GCM depuis le NIP ----------
+async function deriveKey(nipValue, salt) {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(nipValue), "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: new TextEncoder().encode(salt), iterations: 150000, hash: "SHA-256" },
+    keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+  );
+}
+
+// Hasardisation réversible : rotation circulaire des caractères,
+// répétée "rounds" fois (rounds vient du serveur, formule cachée).
+function scramble(text, rounds) {
+  let arr = text.split("");
+  for (let r = 0; r < rounds % 97; r++) arr.push(arr.shift());
+  return arr.join("");
+}
+function unscramble(text, rounds) {
+  let arr = text.split("");
+  for (let r = 0; r < rounds % 97; r++) arr.unshift(arr.pop());
+  return arr.join("");
+}
+
+function dateStamp() {
+  const d = new Date();
+  return Number(`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`);
+}
+
+async function encryptMessage(plainText, conversationId) {
+  const ds = dateStamp();
+  const { data } = await api("crypto-relay", { conversation_id: conversationId, date_stamp: ds, mode: "encode" });
+  const rounds = data.rounds ?? 3;
+  const scrambled = scramble(plainText, rounds);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(nip, conversationId);
+  const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(scrambled));
+  return {
+    encrypted_payload: btoa(String.fromCharCode(...new Uint8Array(cipher))),
+    iv: btoa(String.fromCharCode(...iv)),
+    date_stamp: ds
+  };
+}
+
+async function decryptMessage(msg) {
+  const { data } = await api("crypto-relay", { conversation_id: msg.conversation_id, date_stamp: msg._dateStamp, mode: "decode" });
+  const rounds = data.rounds ?? 3;
+  const key = await deriveKey(nip, msg.conversation_id);
+  const iv = Uint8Array.from(atob(msg.iv), c => c.charCodeAt(0));
+  const cipherBytes = Uint8Array.from(atob(msg.encrypted_payload), c => c.charCodeAt(0));
+  try {
+    const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipherBytes);
+    const scrambled = new TextDecoder().decode(plainBuf);
+    return unscramble(scrambled, rounds);
+  } catch {
+    return "[Message illisible avec ce NIP]";
+  }
+}
+
+// ---------- Conversations ----------
+async function loadConversations() {
+  const { data } = await sb.from("conversation_members")
+    .select("conversation_id, conversations(id, name, is_group, encrypted)")
+    .order("conversation_id");
+  convos = (data ?? []).map(r => r.conversations).filter(Boolean);
+  const list = document.getElementById("convoList");
+  list.innerHTML = "";
+  convos.forEach(c => {
+    const el = document.createElement("div");
+    el.className = "convo";
+    el.innerHTML = `${c.name || "Conversation"} ${c.encrypted ? '<span class="lock">chiffré</span>' : ""}`;
+    el.addEventListener("click", () => openConvo(c));
+    list.appendChild(el);
+  });
+}
+
+document.getElementById("newConvoBtn").addEventListener("click", async () => {
+  const name = prompt("Nom de la conversation :");
+  if (!name) return;
+  const encrypted = confirm("Chiffrer cette conversation (nécessite le NIP) ?");
+  const { data: { user } } = await sb.auth.getUser();
+  const { data: convo, error } = await sb.from("conversations")
+    .insert({ name, encrypted, created_by: user.id }).select().single();
+  if (error) return alert("Impossible de créer la conversation.");
+  await sb.from("conversation_members").insert({ conversation_id: convo.id, user_id: user.id });
+  loadConversations();
+});
+
+async function openConvo(convo) {
+  currentConvo = convo;
+  document.getElementById("convoTitle").textContent = convo.name + (convo.encrypted ? " — chiffré" : "");
+  if (convo.encrypted && !nip) { document.getElementById("nipModal").style.display = "flex"; return; }
+  await loadMessages(convo);
+}
+
+// Cache local (par conversation) — remplace le stockage serveur une fois lu.
+function cacheKey(convoId) { return `kreyptedd_cache_${convoId}`; }
+function readCache(convoId) { try { return JSON.parse(localStorage.getItem(cacheKey(convoId)) || "[]"); } catch { return []; } }
+function writeCache(convoId, arr) { localStorage.setItem(cacheKey(convoId), JSON.stringify(arr)); }
+
+async function loadMessages(convo) {
+  const thread = document.getElementById("thread");
+  thread.innerHTML = "";
+  const cached = readCache(convo.id);
+  const { data: { user } } = await sb.auth.getUser();
+
+  cached.forEach(m => renderMessage(m, user.id));
+
+  const { data: serverMsgs } = await sb.from("messages").select("*").eq("conversation_id", convo.id).order("sent_at");
+  for (const m of serverMsgs ?? []) {
+    if (!convo.encrypted) {
+      renderMessage({ ...m, plain: m.content }, user.id);
+      continue;
+    }
+    m._dateStamp = m.date_stamp;
+    const plain = await decryptMessage(m);
+    const enriched = { id: m.id, sender_id: m.sender_id, sent_at: m.sent_at, plain };
+    writeCache(convo.id, [...readCache(convo.id), enriched]);
+    renderMessage(enriched, user.id);
+    await api("message-lifecycle", { action: "ack_read", message_id: m.id });
+  }
+}
+
+function renderMessage(m, myId) {
+  const div = document.createElement("div");
+  div.className = "msg" + (m.sender_id === myId ? " mine" : "");
+  div.textContent = m.plain;
+  document.getElementById("thread").appendChild(div);
+}
+
+document.getElementById("sendBtn").addEventListener("click", sendMessage);
+document.getElementById("msgInput").addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
+
+async function sendMessage() {
+  const input = document.getElementById("msgInput");
+  const text = input.value.trim();
+  if (!text || !currentConvo) return;
+  const { data: { user } } = await sb.auth.getUser();
+
+  if (!currentConvo.encrypted) {
+    await sb.from("messages").insert({ conversation_id: currentConvo.id, sender_id: user.id, content: text });
+  } else {
+    if (!nip) { document.getElementById("nipModal").style.display = "flex"; return; }
+    const { encrypted_payload, iv, date_stamp } = await encryptMessage(text, currentConvo.id);
+    await sb.from("messages").insert({ conversation_id: currentConvo.id, sender_id: user.id, encrypted_payload, iv, date_stamp });
+  }
+  input.value = "";
+  loadMessages(currentConvo);
+}
+
+// ---------- Suppression ----------
+document.getElementById("deleteMenuBtn").addEventListener("click", async () => {
+  if (!currentConvo) return;
+  const choice = prompt("Taper : mine (mon historique) / both (historique des deux) / full (tout supprimer)");
+  const scope = { mine: "history_mine", both: "history_both", full: "full_chat" }[choice];
+  if (!scope) return;
+  await api("message-lifecycle", { action: "resolve_deletion", conversation_id: currentConvo.id, scope });
+  if (scope === "history_mine") { localStorage.removeItem(cacheKey(currentConvo.id)); }
+  alert("Demande enregistrée.");
+});
+
+document.getElementById("nipModal").style.display = "flex";
+</script>
+</body>
+</html>
