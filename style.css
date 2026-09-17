@@ -1,0 +1,136 @@
+:root {
+  --bg: #1b1e22;
+  --panel: #23272c;
+  --border: #333941;
+  --text: #f2f4f6;
+  --text-dim: #a7b0ba;
+  --accent: #a9c9e8;
+  --accent-dim: #6f8ea8;
+  --danger: #d98b8b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.wrap {
+  max-width: 380px;
+  margin: 8vh auto;
+  padding: 0 20px;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.sub {
+  color: var(--text-dim);
+  margin: 0 0 24px;
+  font-size: 13px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 20px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 14px 0 4px;
+}
+
+label:first-child { margin-top: 0; }
+
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 9px 10px;
+  font-size: 14px;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+
+.checkline {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.checkline input { margin-top: 3px; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  width: 100%;
+  margin-top: 18px;
+  padding: 10px;
+  background: var(--accent);
+  color: #14171a;
+  border: none;
+  border-radius: 3px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover { background: var(--accent-dim); color: var(--text); }
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.switch {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 10px;
+  display: none;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.divider::before, .divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}

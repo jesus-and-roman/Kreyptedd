@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Termes et conditions</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap { max-width: 640px; margin: 6vh auto; }
+  .panel { text-align: left; }
+  ol { padding-left: 20px; }
+  li { margin-bottom: 12px; color: var(--text-dim); }
+  li::marker { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Termes et conditions</h1>
+  <p class="sub">Version 1 — dernière mise à jour à compléter.</p>
+  <div class="panel">
+    <ol id="tosList"></ol>
+  </div>
+  <p class="switch"><a href="login.html">Retour à la connexion</a></p>
+</div>
+
+<script>
+// À terme, charger tos_versions depuis Supabase (dernière version publiée).
+// Placeholder de structure en attendant le texte final.
+const clauses = [
+  "Placeholder — clause 1 à rédiger.",
+  "Placeholder — clause 2 à rédiger.",
+  "Placeholder — clause 3 à rédiger."
+];
+const list = document.getElementById("tosList");
+clauses.forEach(c => {
+  const li = document.createElement("li");
+  li.textContent = c;
+  list.appendChild(li);
+});
+</script>
+</body>
+</html>

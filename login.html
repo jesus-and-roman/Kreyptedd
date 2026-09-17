@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">Se connecter</h1>
+  <p class="sub" id="subtitle">Entre ton identifiant pour accéder à tes conversations.</p>
+
+  <div class="panel">
+    <form id="authForm">
+      <label for="username">Nom d'utilisateur</label>
+      <input type="text" id="username" autocomplete="username" required>
+
+      <label for="password">Mot de passe</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+
+      <div id="signupExtra" style="display:none">
+        <label for="email">Email (optionnel)</label>
+        <input type="email" id="email" autocomplete="email">
+
+        <div class="checkline">
+          <input type="checkbox" id="newsletter">
+          <span>Recevoir les bulletins d'update par email</span>
+        </div>
+      </div>
+
+      <div class="checkline" id="tosLine" style="display:none">
+        <input type="checkbox" id="tosAccept" required>
+        <span>J'accepte les <a href="tos.html" target="_blank">termes et conditions</a></span>
+      </div>
+
+      <p class="error" id="errorMsg"></p>
+      <button type="submit" id="submitBtn">Se connecter</button>
+    </form>
+
+    <div class="divider">ou</div>
+    <button type="button" class="ghost" id="ipBtn">Compte anonyme (par IP)</button>
+
+    <p class="switch">
+      <span id="switchText">Pas de compte ?</span>
+      <a href="#" id="switchLink">Créer un compte</a>
+    </p>
+  </div>
+</div>
+
+<script>
+// -----------------------------------------------------------------
+// Config Supabase — remplacer par tes valeurs de projet
+// -----------------------------------------------------------------
+const SUPABASE_URL = "https://TON-PROJET.supabase.co";
+const SUPABASE_ANON_KEY = "TON_ANON_KEY";
+
+let mode = "login"; // "login" | "signup"
+
+const form = document.getElementById("authForm");
+const signupExtra = document.getElementById("signupExtra");
+const tosLine = document.getElementById("tosLine");
+const errorMsg = document.getElementById("errorMsg");
+const submitBtn = document.getElementById("submitBtn");
+const title = document.getElementById("title");
+const subtitle = document.getElementById("subtitle");
+const switchText = document.getElementById("switchText");
+const switchLink = document.getElementById("switchLink");
+
+switchLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  mode = mode === "login" ? "signup" : "login";
+  const isSignup = mode === "signup";
+  signupExtra.style.display = isSignup ? "block" : "none";
+  tosLine.style.display = isSignup ? "flex" : "none";
+  document.getElementById("tosAccept").required = isSignup;
+  title.textContent = isSignup ? "Créer un compte" : "Se connecter";
+  subtitle.textContent = isSignup
+    ? "Choisis un nom d'utilisateur et un mot de passe."
+    : "Entre ton identifiant pour accéder à tes conversations.";
+  submitBtn.textContent = isSignup ? "Créer le compte" : "Se connecter";
+  switchText.textContent = isSignup ? "Déjà un compte ?" : "Pas de compte ?";
+  switchLink.textContent = isSignup ? "Se connecter" : "Créer un compte";
+  errorMsg.style.display = "none";
+});
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = "block";
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  errorMsg.style.display = "none";
+
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (mode === "signup") {
+    const email = document.getElementById("email").value.trim();
+    const newsletter = document.getElementById("newsletter").checked;
+
+    // Le hash du mot de passe DOIT être fait côté serveur (Edge Function),
+    // jamais en clair ni hashé côté client seul (un hash client sans sel
+    // serveur reste rejouable). Ceci appelle une fonction "signup".
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY },
+      body: JSON.stringify({ username, password, email: email || null, newsletter })
+    });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || "Inscription impossible.");
+    localStorage.setItem("session_token", data.token); // jeton de session applicatif, jamais le NIP
+    window.location.href = "app.html";
+  } else {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || "Identifiants invalides.");
+    localStorage.setItem("session_token", data.token);
+    window.location.href = "app.html";
+  }
+});
+
+// Compte anonyme par IP : le hash de l'IP doit être calculé côté serveur
+// (Edge Function qui lit l'en-tête x-forwarded-for de la requête), jamais
+// côté client — le navigateur ne connaît pas son IP publique de façon fiable.
+document.getElementById("ipBtn").addEventListener("click", async () => {
+  errorMsg.style.display = "none";
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/ip-login`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_ANON_KEY }
+  });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || "Connexion anonyme impossible.");
+  localStorage.setItem("session_token", data.token);
+  // Premier passage : le compte a été créé, on affiche son code contact.
+  window.location.href = data.is_new ? "welcome-ip.html" : "app.html";
+});
+</script>
+</body>
+</html>
