@@ -39,9 +39,10 @@
   <p class="switch"><a href="app.html">Retour aux conversations</a></p>
 </div>
 
+<script src="config.js"></script>
 <script>
-const SUPABASE_URL = "https://TON-PROJET.supabase.co";
-const SUPABASE_ANON_KEY = "TON_ANON_KEY";
+const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
 const token = localStorage.getItem("session_token");
 if (!token) window.location.href = "login.html";
 

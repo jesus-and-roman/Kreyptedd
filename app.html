@@ -39,6 +39,7 @@
   <div style="padding:12px;border-top:1px solid var(--border)">
     <button id="newConvoBtn" class="ghost">Nouvelle conversation</button>
   </div>
+  <div style="padding:10px 14px;border-top:1px solid var(--border);font-size:12px" id="securityBadge">Score de sécurité : ...</div>
 </div>
 
 <div class="main">
@@ -77,9 +78,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
 <script>
-const SUPABASE_URL = "https://TON-PROJET.supabase.co";
-const SUPABASE_ANON_KEY = "TON_ANON_KEY";
+const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
 const token = localStorage.getItem("session_token");
 if (!token) window.location.href = "login.html";
 
@@ -304,6 +306,16 @@ document.getElementById("deleteMenuBtn").addEventListener("click", async () => {
 });
 
 document.getElementById("nipModal").style.display = "flex";
+
+async function loadSecurityBadge() {
+  const { data } = await api("security-status", {});
+  const badge = document.getElementById("securityBadge");
+  const pct = data.score ?? 100;
+  const color = pct > 70 ? "#7fd88f" : pct >= 48 ? "#e8d37a" : "var(--danger)";
+  badge.style.color = color;
+  badge.textContent = `Score de sécurité : ${pct}%`;
+}
+loadSecurityBadge();
 </script>
 </body>
 </html>

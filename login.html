@@ -19,6 +19,7 @@
 
       <label for="password">Mot de passe</label>
       <input type="password" id="password" autocomplete="current-password" required>
+      <p class="sub" id="pwStrength" style="display:none;margin:4px 0 0;font-size:12px"></p>
 
       <div id="signupExtra" style="display:none">
         <label for="email">Email (optionnel)</label>
@@ -49,12 +50,10 @@
   </div>
 </div>
 
+<script src="config.js"></script>
 <script>
-// -----------------------------------------------------------------
-// Config Supabase — remplacer par tes valeurs de projet
-// -----------------------------------------------------------------
-const SUPABASE_URL = "https://TON-PROJET.supabase.co";
-const SUPABASE_ANON_KEY = "TON_ANON_KEY";
+const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
 
 let mode = "login"; // "login" | "signup"
 
@@ -74,6 +73,7 @@ switchLink.addEventListener("click", (e) => {
   const isSignup = mode === "signup";
   signupExtra.style.display = isSignup ? "block" : "none";
   tosLine.style.display = isSignup ? "flex" : "none";
+  document.getElementById("pwStrength").style.display = isSignup ? "block" : "none";
   document.getElementById("tosAccept").required = isSignup;
   title.textContent = isSignup ? "Créer un compte" : "Se connecter";
   subtitle.textContent = isSignup
@@ -89,6 +89,32 @@ function showError(msg) {
   errorMsg.textContent = msg;
   errorMsg.style.display = "block";
 }
+
+// Pourcentage de sécurité affiché à côté du mot de passe (inscription).
+// Mêmes seuils de couleur que le score de sécurité système : >70 vert,
+// 48-69 jaune, 1-47 rouge.
+function passwordStrength(pw) {
+  let score = 0;
+  if (pw.length >= 8) score += 25;
+  if (pw.length >= 12) score += 15;
+  if (/[a-z]/.test(pw)) score += 10;
+  if (/[A-Z]/.test(pw)) score += 15;
+  if (/[0-9]/.test(pw)) score += 15;
+  if (/[^A-Za-z0-9]/.test(pw)) score += 20;
+  return Math.min(score, 100);
+}
+function strengthColor(pct) {
+  if (pct > 70) return "#7fd88f";
+  if (pct >= 48) return "#e8d37a";
+  return "var(--danger)";
+}
+document.getElementById("password").addEventListener("input", (e) => {
+  if (mode !== "signup") return;
+  const pct = passwordStrength(e.target.value);
+  const el = document.getElementById("pwStrength");
+  el.textContent = `Sécurité du mot de passe : ${pct}%`;
+  el.style.color = strengthColor(pct);
+});
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();

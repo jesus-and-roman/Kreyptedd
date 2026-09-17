@@ -63,6 +63,24 @@ Deno.serve(async (req) => {
     success = false;
   }
 
+  if (success) {
+    // Une réussite qui suit une rafale d'échecs récents = signe qu'un
+    // pattern de brute force a fini par retomber juste. On journalise
+    // et on fait baisser le score de sécurité système en conséquence.
+    const { count: recentFailures } = await supabase
+      .from("crack_attempts")
+      .select("id", { count: "exact", head: true })
+      .or(`user_id.eq.${userId},ip_hash.eq.${ipHash}`)
+      .eq("success", false)
+      .gt("attempted_at", new Date(Date.now() - 30 * 60 * 1000).toISOString());
+
+    if ((recentFailures ?? 0) >= 8) {
+      await supabase.rpc("apply_crack_penalty", {
+        p_user_id: userId, p_ip_hash: ipHash, p_rounds: result.rounds
+      });
+    }
+  }
+
   await supabase.from("crack_attempts").insert({
     user_id: userId,
     ip_hash: ipHash,
