@@ -1,11 +1,13 @@
 // Kreyptedd — Edge Function: contacts-list
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "./cors.ts";
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const auth = req.headers.get("authorization");
   const { data: userData } = await supabase.auth.getUser(auth ?? "");
-  if (!userData?.user) return new Response(JSON.stringify({ error: "Non authentifié." }), { status: 401 });
+  if (!userData?.user) return jsonResponse({ error: "Non authentifié." }, 401);
   const userId = userData.user.id;
 
   const { data: me } = await supabase.from("app_users").select("contact_code").eq("id", userId).single();
@@ -24,9 +26,9 @@ Deno.serve(async (req) => {
 
   const contacts = (contactsRaw ?? []).map(c => ({ username: c.app_users?.username }));
 
-  return new Response(JSON.stringify({
+  return jsonResponse({
     my_code: me?.contact_code,
     incoming,
     contacts
-  }), { status: 200 });
+  }, 200);
 });

@@ -7,6 +7,7 @@
 //                     full_chat), puis supprime la demande elle-même.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "./cors.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -14,10 +15,11 @@ const supabase = createClient(
 );
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const auth = req.headers.get("authorization");
   const { data: userData } = await supabase.auth.getUser(auth ?? "");
   if (!userData?.user) {
-    return new Response(JSON.stringify({ error: "Non authentifié." }), { status: 401 });
+    return jsonResponse({ error: "Non authentifié." }, 401);
   }
   const userId = userData.user.id;
   const { action, message_id, conversation_id, scope } = await req.json();
@@ -26,7 +28,7 @@ Deno.serve(async (req) => {
     // Le message a été déchiffré et sauvegardé dans le cache du navigateur
     // du destinataire ; on le retire définitivement du serveur.
     await supabase.from("messages").delete().eq("id", message_id);
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    return jsonResponse({ ok: true }, 200);
   }
 
   if (action === "resolve_deletion") {
@@ -39,7 +41,7 @@ Deno.serve(async (req) => {
       // au-delà de journaliser la demande (déjà fait ci-dessus).
       await supabase.from("deletion_requests")
         .delete().eq("conversation_id", conversation_id).eq("requested_by", userId).eq("scope", "history_mine");
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      return jsonResponse({ ok: true }, 200);
     }
 
     // history_both / full_chat : attendre que TOUS les membres aient
@@ -62,8 +64,8 @@ Deno.serve(async (req) => {
       await supabase.from("deletion_requests").delete().eq("conversation_id", conversation_id).eq("scope", scope);
     }
 
-    return new Response(JSON.stringify({ ok: true, executed: allRequested }), { status: 200 });
+    return jsonResponse({ ok: true, executed: allRequested }, 200);
   }
 
-  return new Response(JSON.stringify({ error: "Action inconnue." }), { status: 400 });
+  return jsonResponse({ error: "Action inconnue." }, 400);
 });

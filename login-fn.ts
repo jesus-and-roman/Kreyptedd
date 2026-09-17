@@ -1,5 +1,6 @@
 // Kreyptedd — Edge Function: login
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "./cors.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -7,9 +8,10 @@ const supabase = createClient(
 );
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const { username, password } = await req.json();
   if (!username || !password) {
-    return new Response(JSON.stringify({ error: "Identifiants manquants." }), { status: 400 });
+    return jsonResponse({ error: "Identifiants manquants." }, 400);
   }
 
   const syntheticEmail = `${username.toLowerCase()}@kreyptedd.internal`;
@@ -19,8 +21,8 @@ Deno.serve(async (req) => {
   });
 
   if (error || !data?.session) {
-    return new Response(JSON.stringify({ error: "Nom d'utilisateur ou mot de passe incorrect." }), { status: 401 });
+    return jsonResponse({ error: "Nom d'utilisateur ou mot de passe incorrect." }, 401);
   }
 
-  return new Response(JSON.stringify({ token: data.session.access_token }), { status: 200 });
+  return jsonResponse({ token: data.session.access_token }, 200);
 });

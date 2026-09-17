@@ -7,6 +7,7 @@
 // directement dans les policies RLS déjà écrites.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "./cors.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -20,19 +21,20 @@ function generateContactCode(): string {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const { username, password, email, newsletter } = await req.json();
 
   if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-    return new Response(JSON.stringify({ error: "Nom d'utilisateur invalide (3-20 caractères, lettres/chiffres/_)." }), { status: 400 });
+    return jsonResponse({ error: "Nom d'utilisateur invalide (3-20 caractères, lettres/chiffres/_)." }, 400);
   }
   if (!password || password.length < 8) {
-    return new Response(JSON.stringify({ error: "Mot de passe trop court (8 caractères minimum)." }), { status: 400 });
+    return jsonResponse({ error: "Mot de passe trop court (8 caractères minimum)." }, 400);
   }
 
   const { data: existing } = await supabase
     .from("app_users").select("id").eq("username", username).maybeSingle();
   if (existing) {
-    return new Response(JSON.stringify({ error: "Ce nom d'utilisateur est déjà pris." }), { status: 409 });
+    return jsonResponse({ error: "Ce nom d'utilisateur est déjà pris." }, 409);
   }
 
   const syntheticEmail = `${username.toLowerCase()}@kreyptedd.internal`;
@@ -42,7 +44,7 @@ Deno.serve(async (req) => {
     email_confirm: true
   });
   if (authErr || !authUser?.user) {
-    return new Response(JSON.stringify({ error: "Inscription impossible." }), { status: 500 });
+    return jsonResponse({ error: "Inscription impossible." }, 500);
   }
 
   let contactCode = generateContactCode();
@@ -63,7 +65,7 @@ Deno.serve(async (req) => {
   });
   if (insertErr) {
     await supabase.auth.admin.deleteUser(authUser.user.id);
-    return new Response(JSON.stringify({ error: "Inscription impossible." }), { status: 500 });
+    return jsonResponse({ error: "Inscription impossible." }, 500);
   }
 
   const { data: session, error: signInErr } = await supabase.auth.signInWithPassword({
@@ -71,11 +73,11 @@ Deno.serve(async (req) => {
     password
   });
   if (signInErr || !session?.session) {
-    return new Response(JSON.stringify({ error: "Compte créé, connecte-toi." }), { status: 201 });
+    return jsonResponse({ error: "Compte créé, connecte-toi." }, 201);
   }
 
-  return new Response(JSON.stringify({
+  return jsonResponse({
     token: session.session.access_token,
     contact_code: contactCode
-  }), { status: 201 });
+  }, 201);
 });

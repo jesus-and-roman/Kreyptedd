@@ -1,20 +1,22 @@
 // Kreyptedd — Edge Function: contact-request
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "./cors.ts";
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const auth = req.headers.get("authorization");
   const { data: userData } = await supabase.auth.getUser(auth ?? "");
-  if (!userData?.user) return new Response(JSON.stringify({ error: "Non authentifié." }), { status: 401 });
+  if (!userData?.user) return jsonResponse({ error: "Non authentifié." }, 401);
   const fromUser = userData.user.id;
 
   const { code } = await req.json();
   const { data: target } = await supabase.from("app_users").select("id, username").eq("contact_code", code).maybeSingle();
-  if (!target) return new Response(JSON.stringify({ error: "Code introuvable." }), { status: 404 });
-  if (target.id === fromUser) return new Response(JSON.stringify({ error: "Tu ne peux pas t'ajouter toi-même." }), { status: 400 });
+  if (!target) return jsonResponse({ error: "Code introuvable." }, 404);
+  if (target.id === fromUser) return jsonResponse({ error: "Tu ne peux pas t'ajouter toi-même." }, 400);
 
   const { error } = await supabase.from("contact_requests").insert({ from_user: fromUser, to_user: target.id });
-  if (error) return new Response(JSON.stringify({ error: "Demande déjà envoyée ou existante." }), { status: 409 });
+  if (error) return jsonResponse({ error: "Demande déjà envoyée ou existante." }, 409);
 
-  return new Response(JSON.stringify({ ok: true }), { status: 201 });
+  return jsonResponse({ ok: true }, 201);
 });

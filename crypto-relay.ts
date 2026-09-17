@@ -11,6 +11,7 @@
 // en temps sans toucher au code déployé).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "./cors.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -30,12 +31,13 @@ function computeHasardisations(dateStamp: number): number {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const auth = req.headers.get("authorization");
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
 
   const { data: userData, error: userErr } = await supabase.auth.getUser(auth ?? "");
   if (userErr || !userData?.user) {
-    return new Response(JSON.stringify({ error: "Non authentifié." }), { status: 401 });
+    return jsonResponse({ error: "Non authentifié." }, 401);
   }
   const userId = userData.user.id;
 
@@ -51,7 +53,7 @@ Deno.serve(async (req) => {
     p_ip_hash: ipHash
   });
   if (locked) {
-    return new Response(JSON.stringify({ error: "Trop de tentatives, réessaie plus tard." }), { status: 429 });
+    return jsonResponse({ error: "Trop de tentatives, réessaie plus tard." }, 429);
   }
 
   let success = true;
@@ -89,9 +91,9 @@ Deno.serve(async (req) => {
   });
 
   if (!success) {
-    return new Response(JSON.stringify({ error: "Calcul impossible." }), { status: 400 });
+    return jsonResponse({ error: "Calcul impossible." }, 400);
   }
-  return new Response(JSON.stringify(result), { status: 200 });
+  return jsonResponse(result, 200);
 });
 
 async function sha256Hex(input: string): Promise<string> {

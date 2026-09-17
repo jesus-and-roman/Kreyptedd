@@ -6,6 +6,7 @@
 // uniquement en interne pour obtenir un JWT via Supabase Auth.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "./cors.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -30,9 +31,10 @@ function generateContactCode(): string {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim();
   if (!ip) {
-    return new Response(JSON.stringify({ error: "IP introuvable." }), { status: 400 });
+    return jsonResponse({ error: "IP introuvable." }, 400);
   }
 
   const ipHash = await sha256Hex(ip + Deno.env.get("KREYPTEDD_IP_SALT"));
@@ -50,13 +52,13 @@ Deno.serve(async (req) => {
       password: internalPassword
     });
     if (error || !session?.session) {
-      return new Response(JSON.stringify({ error: "Connexion anonyme impossible." }), { status: 500 });
+      return jsonResponse({ error: "Connexion anonyme impossible." }, 500);
     }
-    return new Response(JSON.stringify({
+    return jsonResponse({
       token: session.session.access_token,
       is_new: false,
       contact_code: existingUser.contact_code
-    }), { status: 200 });
+    }, 200);
   }
 
   const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
@@ -65,7 +67,7 @@ Deno.serve(async (req) => {
     email_confirm: true
   });
   if (authErr || !authUser?.user) {
-    return new Response(JSON.stringify({ error: "Connexion anonyme impossible." }), { status: 500 });
+    return jsonResponse({ error: "Connexion anonyme impossible." }, 500);
   }
 
   let contactCode = generateContactCode();
@@ -86,7 +88,7 @@ Deno.serve(async (req) => {
   });
   if (insertErr) {
     await supabase.auth.admin.deleteUser(authUser.user.id);
-    return new Response(JSON.stringify({ error: "Connexion anonyme impossible." }), { status: 500 });
+    return jsonResponse({ error: "Connexion anonyme impossible." }, 500);
   }
 
   const { data: session } = await supabase.auth.signInWithPassword({
@@ -94,9 +96,9 @@ Deno.serve(async (req) => {
     password: internalPassword
   });
 
-  return new Response(JSON.stringify({
+  return jsonResponse({
     token: session?.session?.access_token,
     is_new: true,
     contact_code: contactCode
-  }), { status: 201 });
+  }, 201);
 });
