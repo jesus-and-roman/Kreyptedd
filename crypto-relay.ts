@@ -44,9 +44,10 @@ function computeHasardisations(dateStamp: number): number {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const auth = req.headers.get("authorization");
+  const jwt = (auth ?? "").replace("Bearer ", "").trim();
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
 
-  const { data: userData, error: userErr } = await supabase.auth.getUser(auth ?? "");
+  const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
   if (userErr || !userData?.user) {
     return jsonResponse({ error: "Non authentifié." }, 401);
   }

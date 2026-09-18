@@ -17,7 +17,8 @@ function jsonResponse(body, status) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const auth = req.headers.get("authorization");
-  const { data: userData } = await supabase.auth.getUser(auth ?? "");
+  const jwt = (auth ?? "").replace("Bearer ", "").trim();
+  const { data: userData } = await supabase.auth.getUser(jwt);
   if (!userData?.user) return jsonResponse({ error: "Non authentifié." }, 401);
   const userId = userData.user.id;
 

@@ -87,6 +87,8 @@
       <input type="checkbox" id="newConvoEncrypted">
       <span>Chiffrer cette conversation (nécessite le NIP)</span>
     </div>
+    <label>Contacts à ajouter</label>
+    <div id="convoContactList" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:3px;padding:8px"></div>
     <button id="createConvoBtn">Créer</button>
     <button class="ghost" id="cancelConvoBtn" style="margin-top:8px">Annuler</button>
   </div>
@@ -264,10 +266,31 @@ async function loadConversations() {
   });
 }
 
-document.getElementById("newConvoBtn").addEventListener("click", () => {
+document.getElementById("newConvoBtn").addEventListener("click", async () => {
   document.getElementById("newConvoName").value = "";
   document.getElementById("newConvoEncrypted").checked = false;
+  const list = document.getElementById("convoContactList");
+  list.innerHTML = '<p class="sub">Chargement...</p>';
   document.getElementById("newConvoModal").style.display = "flex";
+
+  const { data } = await api("contacts-list", {});
+  list.innerHTML = "";
+  if (!data.contacts || data.contacts.length === 0) {
+    list.innerHTML = '<p class="sub">Aucun contact. Ajoute-en depuis la page Contacts.</p>';
+    return;
+  }
+  data.contacts.forEach(c => {
+    const row = document.createElement("div");
+    row.className = "checkline";
+    row.style.justifyContent = "space-between";
+    row.innerHTML = `
+      <span><input type="checkbox" class="convoContactCheck" value="${c.id}"> ${c.username}</span>
+      <select class="convoContactRole" data-id="${c.id}" style="width:auto;padding:2px 6px;font-size:12px">
+        <option value="member">Membre</option>
+        <option value="admin">Admin</option>
+      </select>`;
+    list.appendChild(row);
+  });
 });
 document.getElementById("cancelConvoBtn").addEventListener("click", () => {
   document.getElementById("newConvoModal").style.display = "none";
@@ -276,12 +299,23 @@ document.getElementById("createConvoBtn").addEventListener("click", async () => 
   const name = document.getElementById("newConvoName").value.trim();
   if (!name) return;
   const encrypted = document.getElementById("newConvoEncrypted").checked;
+
+  const selected = [];
+  document.querySelectorAll(".convoContactCheck:checked").forEach(chk => {
+    const role = document.querySelector(`.convoContactRole[data-id="${chk.value}"]`).value;
+    selected.push({ id: chk.value, role });
+  });
+
   const { data: { user } } = await sb.auth.getUser();
   const { data: convo, error } = await sb.from("conversations")
-    .insert({ name, encrypted, created_by: user.id }).select().single();
+    .insert({ name, encrypted, is_group: selected.length > 1, created_by: user.id }).select().single();
   document.getElementById("newConvoModal").style.display = "none";
   if (error) return showInfo("Impossible de créer la conversation.");
-  await sb.from("conversation_members").insert({ conversation_id: convo.id, user_id: user.id });
+
+  const members = [{ conversation_id: convo.id, user_id: user.id, role: "admin" }];
+  selected.forEach(s => members.push({ conversation_id: convo.id, user_id: s.id, role: s.role }));
+  await sb.from("conversation_members").insert(members);
+
   loadConversations();
 });
 

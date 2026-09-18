@@ -17,7 +17,8 @@ function jsonResponse(body, status) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const auth = req.headers.get("authorization");
-  const { data: userData } = await supabase.auth.getUser(auth ?? "");
+  const jwt = (auth ?? "").replace("Bearer ", "").trim();
+  const { data: userData } = await supabase.auth.getUser(jwt);
   if (!userData?.user) return jsonResponse({ error: "Non authentifié." }, 401);
   const userId = userData.user.id;
 
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
     .select("contact_id, app_users!contacts_contact_id_fkey(username)")
     .eq("user_id", userId);
 
-  const contacts = (contactsRaw ?? []).map(c => ({ username: c.app_users?.username }));
+  const contacts = (contactsRaw ?? []).map(c => ({ id: c.contact_id, username: c.app_users?.username }));
 
   return jsonResponse({
     my_code: me?.contact_code,
