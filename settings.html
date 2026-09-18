@@ -18,12 +18,38 @@
 <div class="wrap">
   <h1>Paramètres</h1>
 
+  <h2>Personnalisation</h2>
+  <div class="panel">
+    <label>Surnom affiché (facultatif)</label>
+    <input type="text" id="displayNameInput" placeholder="Laisser vide pour utiliser le nom d'utilisateur">
+    <label>Bio</label>
+    <input type="text" id="bioInput" placeholder="Quelques mots à propos de toi">
+    <label>Couleur d'accent</label>
+    <div id="colorSwatches" style="display:flex;gap:8px;margin-top:6px"></div>
+    <button id="savePersonalizationBtn" style="margin-top:14px">Enregistrer</button>
+  </div>
+
   <h2>Sécurité</h2>
   <div class="panel">
     <div class="row"><span>Score de sécurité système</span><strong id="scoreVal">...</strong></div>
     <div class="row"><span>Verrouiller mon profil public</span>
       <input type="checkbox" id="lockToggle">
     </div>
+    <div class="row"><span>Verrouillage automatique après inactivité</span>
+      <select id="autoLockSelect" style="width:auto;padding:4px 8px">
+        <option value="0">Jamais</option>
+        <option value="2">2 minutes</option>
+        <option value="5">5 minutes</option>
+        <option value="15">15 minutes</option>
+        <option value="30">30 minutes</option>
+      </select>
+    </div>
+  </div>
+
+  <h2>Effacement d'urgence</h2>
+  <div class="panel">
+    <p class="sub">Vide immédiatement tout le cache local déchiffré (tous tes messages en cache dans ce navigateur) et te déconnecte. Ne supprime rien côté serveur.</p>
+    <button id="panicWipeBtn" style="background:var(--danger);color:#1b1e22">Tout effacer et me déconnecter</button>
   </div>
 
   <h2>Mot de passe</h2>
@@ -108,9 +134,55 @@ async function loadProfile() {
   const { data } = await api("get-profile", { profile_id: myId });
   profileData = data;
   document.getElementById("lockToggle").checked = !!data.profile_locked;
+  document.getElementById("displayNameInput").value = data.display_name || "";
+  document.getElementById("bioInput").value = data.bio || "";
+  renderSwatches(data.accent_color || "#a9c9e8");
   tickCountdowns();
   setInterval(tickCountdowns, 1000);
 }
+
+const ACCENT_PRESETS = ["#a9c9e8", "#e8a9c9", "#a9e8c0", "#e8d3a9", "#c9a9e8", "#e8a9a9"];
+let selectedAccent = "#a9c9e8";
+function renderSwatches(current) {
+  selectedAccent = current;
+  const box = document.getElementById("colorSwatches");
+  box.innerHTML = "";
+  ACCENT_PRESETS.forEach(color => {
+    const sw = document.createElement("div");
+    sw.style.cssText = `width:28px;height:28px;border-radius:50%;background:${color};cursor:pointer;border:2px solid ${color === current ? "#fff" : "transparent"}`;
+    sw.addEventListener("click", () => { selectedAccent = color; renderSwatches(color); });
+    box.appendChild(sw);
+  });
+}
+
+document.getElementById("savePersonalizationBtn").addEventListener("click", async () => {
+  await sbUpdateOwnProfile({
+    display_name: document.getElementById("displayNameInput").value.trim() || null,
+    bio: document.getElementById("bioInput").value.trim() || null,
+    accent_color: selectedAccent
+  });
+  showInfoInline("Enregistré.");
+});
+function showInfoInline(msg) {
+  const p = document.createElement("p");
+  p.className = "sub"; p.textContent = msg;
+  document.getElementById("savePersonalizationBtn").after(p);
+  setTimeout(() => p.remove(), 2000);
+}
+
+const AUTOLOCK_KEY = "kreyptedd_autolock_minutes";
+document.getElementById("autoLockSelect").value = localStorage.getItem(AUTOLOCK_KEY) || "5";
+document.getElementById("autoLockSelect").addEventListener("change", (e) => {
+  localStorage.setItem(AUTOLOCK_KEY, e.target.value);
+});
+
+document.getElementById("panicWipeBtn").addEventListener("click", () => {
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith("kreyptedd_")) localStorage.removeItem(k);
+  });
+  localStorage.removeItem("session_token");
+  window.location.href = "login.html";
+});
 
 function tickCountdowns() {
   document.getElementById("avatarCountdown").textContent =

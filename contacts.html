@@ -98,12 +98,36 @@ async function loadAll() {
     list.innerHTML = '<p class="sub">Aucun contact.</p>';
   } else {
     data.contacts.forEach(c => {
+      const nickKey = `kreyptedd_nickname_${c.id}`;
+      const nickname = localStorage.getItem(nickKey);
       const row = document.createElement("div");
       row.className = "row";
-      row.innerHTML = `<span class="name">${c.username}</span>`;
+      row.innerHTML = `
+        <span class="name" id="name-${c.id}">${nickname || c.username} ${nickname ? `<span class="sub" style="font-size:11px">(@${c.username})</span>` : ""}</span>
+        <span class="actions"><button data-id="${c.id}" data-username="${c.username}" class="nickBtn" style="font-size:11px">Surnom</button></span>`;
       list.appendChild(row);
     });
+    document.querySelectorAll(".nickBtn").forEach(btn => {
+      btn.addEventListener("click", () => startNicknameEdit(btn.dataset.id, btn.dataset.username));
+    });
   }
+}
+
+function startNicknameEdit(contactId, username) {
+  const nickKey = `kreyptedd_nickname_${contactId}`;
+  const nameSpan = document.getElementById(`name-${contactId}`);
+  const current = localStorage.getItem(nickKey) || "";
+  nameSpan.innerHTML = `<input type="text" id="nickInput-${contactId}" value="${current}" placeholder="${username}" style="font-size:13px;padding:4px 6px;width:140px">`;
+  const input = document.getElementById(`nickInput-${contactId}`);
+  input.focus();
+  const save = () => {
+    const value = input.value.trim();
+    if (value) localStorage.setItem(nickKey, value);
+    else localStorage.removeItem(nickKey);
+    loadAll();
+  };
+  input.addEventListener("blur", save);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") save(); });
 }
 window.respond = respond;
 loadAll();

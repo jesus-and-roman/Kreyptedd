@@ -63,10 +63,15 @@ async function load() {
   content.innerHTML = `
     ${data.banner_url ? `<img class="banner" src="${data.banner_url}">` : '<div class="banner"></div>'}
     ${data.avatar_url ? `<img class="avatar" src="${data.avatar_url}">` : ""}
-    <h1 style="margin-top:14px">${data.username}</h1>
+    <h1 style="margin-top:14px">${data.display_name || data.username}</h1>
+    <p class="sub">@${data.username}</p>
+    ${data.bio ? `<p style="margin-top:8px">${data.bio}</p>` : ""}
     ${data.is_owner ? '<p class="sub">C\'est ton profil. Modifie-le dans Paramètres.</p>' : ""}
     <div id="mediaCountdowns"></div>
   `;
+  if (data.accent_color) {
+    document.documentElement.style.setProperty("--accent", data.accent_color);
+  }
 
   const countdowns = document.getElementById("mediaCountdowns");
   function tick() {

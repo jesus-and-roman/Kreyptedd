@@ -44,6 +44,9 @@
     <button id="newConvoBtn" class="ghost">Nouvelle conversation</button>
   </div>
   <div style="padding:10px 14px;border-top:1px solid var(--border);font-size:12px" id="securityBadge">Score de sécurité : ...</div>
+  <div style="padding:10px 14px;border-top:1px solid var(--border)">
+    <button id="panicWipeBtn" class="ghost" style="font-size:11px;color:var(--danger);border-color:var(--danger)">Effacement d'urgence</button>
+  </div>
 </div>
 
 <div class="main">
@@ -345,15 +348,35 @@ async function openConvo(convo) {
   await loadMessages(convo);
 }
 
-// Cache local (par conversation) — remplace le stockage serveur une fois lu.
+// Cache local (par conversation) — chiffré avec une clé dérivée du NIP,
+// jamais stocké en clair dans le navigateur.
 function cacheKey(convoId) { return `kreyptedd_cache_${convoId}`; }
-function readCache(convoId) { try { return JSON.parse(localStorage.getItem(cacheKey(convoId)) || "[]"); } catch { return []; } }
-function writeCache(convoId, arr) { localStorage.setItem(cacheKey(convoId), JSON.stringify(arr)); }
+async function readCache(convoId) {
+  const raw = localStorage.getItem(cacheKey(convoId));
+  if (!raw) return [];
+  try {
+    const obj = JSON.parse(raw);
+    const key = await deriveKey(nip, "kreyptedd-cache-salt");
+    const iv = Uint8Array.from(atob(obj.iv), c => c.charCodeAt(0));
+    const cipherBytes = Uint8Array.from(atob(obj.data), c => c.charCodeAt(0));
+    const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipherBytes);
+    return JSON.parse(new TextDecoder().decode(plainBuf));
+  } catch { return []; }
+}
+async function writeCache(convoId, arr) {
+  const key = await deriveKey(nip, "kreyptedd-cache-salt");
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(arr)));
+  localStorage.setItem(cacheKey(convoId), JSON.stringify({
+    iv: btoa(String.fromCharCode(...iv)),
+    data: btoa(String.fromCharCode(...new Uint8Array(cipher)))
+  }));
+}
 
 async function loadMessages(convo) {
   const thread = document.getElementById("thread");
   thread.innerHTML = "";
-  const cached = readCache(convo.id);
+  const cached = await readCache(convo.id);
   const { data: { user } } = await sb.auth.getUser();
 
   cached.forEach(m => renderMessage(m, user.id));
@@ -367,7 +390,7 @@ async function loadMessages(convo) {
     m._dateStamp = m.date_stamp;
     const plain = await decryptMessage(m);
     const enriched = { id: m.id, sender_id: m.sender_id, sent_at: m.sent_at, plain };
-    writeCache(convo.id, [...readCache(convo.id), enriched]);
+    writeCache(convo.id, [...(await readCache(convo.id)), enriched]);
     renderMessage(enriched, user.id);
     await api("message-lifecycle", { action: "ack_read", message_id: m.id });
   }
@@ -481,7 +504,41 @@ loadSecurityBadge();
 (async () => {
   const { data: { user } } = await sb.auth.getUser();
   document.getElementById("myProfileLink").href = `profile.html?profile=${user.id}`;
+  const { data: myProfile } = await api("get-profile", { profile_id: user.id });
+  if (myProfile?.accent_color) {
+    document.documentElement.style.setProperty("--accent", myProfile.accent_color);
+  }
 })();
+
+document.getElementById("panicWipeBtn").addEventListener("click", () => {
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith("kreyptedd_")) localStorage.removeItem(k);
+  });
+  localStorage.removeItem("session_token");
+  window.location.href = "login.html";
+});
+
+// Verrouillage automatique après inactivité : redemande le NIP, sans
+// jamais fermer la session applicative (juste le déchiffrement).
+const AUTOLOCK_KEY = "kreyptedd_autolock_minutes";
+let inactivityTimer = null;
+function resetInactivityTimer() {
+  const minutes = Number(localStorage.getItem(AUTOLOCK_KEY) || "5");
+  if (inactivityTimer) clearTimeout(inactivityTimer);
+  if (minutes <= 0) return;
+  inactivityTimer = setTimeout(() => {
+    if (nip) {
+      nip = null;
+      document.getElementById("thread").innerHTML = "";
+      showInfo("Session verrouillée par inactivité. Ressaisis ton NIP.");
+      document.getElementById("nipModal").style.display = "flex";
+    }
+  }, minutes * 60 * 1000);
+}
+["mousemove", "keydown", "click", "touchstart"].forEach(evt =>
+  document.addEventListener(evt, resetInactivityTimer)
+);
+resetInactivityTimer();
 </script>
 </body>
 </html>
