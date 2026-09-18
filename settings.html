@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kreyptedd — Paramètres</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap { max-width: 480px; }
+  h2 { font-size:14px; color:var(--text-dim); margin:24px 0 8px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+  .row:last-child { border-bottom:none; }
+  .countdown { font-size:11px; color:var(--text-dim); }
+  input[type="file"] { width:100%; margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Paramètres</h1>
+
+  <h2>Sécurité</h2>
+  <div class="panel">
+    <div class="row"><span>Score de sécurité système</span><strong id="scoreVal">...</strong></div>
+    <div class="row"><span>Verrouiller mon profil public</span>
+      <input type="checkbox" id="lockToggle">
+    </div>
+  </div>
+
+  <h2>Mot de passe</h2>
+  <div class="panel">
+    <label>Nouveau mot de passe</label>
+    <input type="password" id="newPassword" placeholder="8 caractères minimum">
+    <button id="changePwBtn">Changer le mot de passe</button>
+    <p class="error" id="pwError" style="display:none"></p>
+  </div>
+
+  <h2>Photo de profil</h2>
+  <div class="panel">
+    <input type="file" id="avatarInput" accept="image/*,video/*">
+    <button id="avatarUploadBtn" class="ghost">Envoyer</button>
+    <p class="countdown" id="avatarCountdown"></p>
+  </div>
+
+  <h2>Bannière</h2>
+  <div class="panel">
+    <input type="file" id="bannerInput" accept="image/*,video/*">
+    <button id="bannerUploadBtn" class="ghost">Envoyer</button>
+    <p class="countdown" id="bannerCountdown"></p>
+  </div>
+
+  <h2>Compte</h2>
+  <div class="panel">
+    <button id="logoutBtn" class="ghost">Se déconnecter</button>
+  </div>
+
+  <p class="switch"><a href="app.html">Retour aux conversations</a></p>
+</div>
+
+<script src="config.js"></script>
+<script>
+const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
+const token = localStorage.getItem("session_token");
+if (!token) window.location.href = "login.html";
+let myId = null;
+let profileData = null;
+
+async function api(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    body: JSON.stringify(body || {})
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+async function apiForm(path, formData) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    body: formData
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+
+function formatCountdown(expiresAtIso) {
+  const diff = new Date(expiresAtIso).getTime() - Date.now();
+  if (diff <= 0) return "expiré";
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return d > 0 ? `${d}j ${h}h restantes` : `${h}h ${m}m ${s}s restantes`;
+}
+
+async function loadScore() {
+  const { data } = await api("security-status", {});
+  const el = document.getElementById("scoreVal");
+  const pct = data.score ?? 100;
+  el.textContent = `${pct}%`;
+  el.style.color = pct > 70 ? "#7fd88f" : pct >= 48 ? "#e8d37a" : "var(--danger)";
+}
+
+async function loadProfile() {
+  // On récupère notre propre id via Supabase Auth directement (pas besoin
+  // d'appel supplémentaire) : le token JWT contient le sub.
+  const payload = JSON.parse(atob(token.split(".")[1]));
+  myId = payload.sub;
+  const { data } = await api("get-profile", { profile_id: myId });
+  profileData = data;
+  document.getElementById("lockToggle").checked = !!data.profile_locked;
+  tickCountdowns();
+  setInterval(tickCountdowns, 1000);
+}
+
+function tickCountdowns() {
+  document.getElementById("avatarCountdown").textContent =
+    profileData?.avatar_expires_at ? `Actuelle valide : ${formatCountdown(profileData.avatar_expires_at)}` : "Aucune photo de profil.";
+  document.getElementById("bannerCountdown").textContent =
+    profileData?.banner_expires_at ? `Actuelle valide : ${formatCountdown(profileData.banner_expires_at)}` : "Aucune bannière.";
+}
+
+document.getElementById("lockToggle").addEventListener("change", async (e) => {
+  await sbUpdateOwnProfile({ profile_locked: e.target.checked });
+});
+
+async function sbUpdateOwnProfile(fields) {
+  // Passe par une requête REST directe (RLS: un user modifie son propre profil).
+  await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${myId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${token}`,
+      "Prefer": "return=minimal"
+    },
+    body: JSON.stringify(fields)
+  });
+}
+
+document.getElementById("changePwBtn").addEventListener("click", async () => {
+  const pw = document.getElementById("newPassword").value;
+  const errEl = document.getElementById("pwError");
+  errEl.style.display = "none";
+  if (pw.length < 8) { errEl.textContent = "8 caractères minimum."; errEl.style.display = "block"; return; }
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ password: pw })
+  });
+  if (!res.ok) { errEl.textContent = "Échec du changement de mot de passe."; errEl.style.display = "block"; return; }
+  document.getElementById("newPassword").value = "";
+});
+
+async function uploadMedia(inputId, kind) {
+  const input = document.getElementById(inputId);
+  if (!input.files[0]) return;
+  const formData = new FormData();
+  formData.append("file", input.files[0]);
+  formData.append("kind", kind);
+  const { ok, data } = await apiForm("gofile-upload", formData);
+  if (!ok) { alert(data.error || "Échec de l'upload."); return; }
+  const field = kind === "avatar" ? "avatar_url" : "banner_url";
+  const expField = kind === "avatar" ? "avatar_expires_at" : "banner_expires_at";
+  await sbUpdateOwnProfile({ [field]: data.url, [expField]: data.expires_at });
+  profileData[field] = data.url;
+  profileData[expField] = data.expires_at;
+  tickCountdowns();
+}
+document.getElementById("avatarUploadBtn").addEventListener("click", () => uploadMedia("avatarInput", "avatar"));
+document.getElementById("bannerUploadBtn").addEventListener("click", () => uploadMedia("bannerInput", "banner"));
+
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  localStorage.removeItem("session_token");
+  window.location.href = "login.html";
+});
+
+loadScore();
+loadProfile();
+</script>
+</body>
+</html>

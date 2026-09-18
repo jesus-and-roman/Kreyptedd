@@ -33,7 +33,11 @@
 <div class="sidebar">
   <div class="sidebar-header">
     <strong>Kreyptedd</strong>
-    <a href="contacts.html" style="font-size:12px">Contacts</a>
+    <span>
+      <a href="contacts.html" style="font-size:12px">Contacts</a>
+      <a href="settings.html" style="font-size:12px;margin-left:8px">Paramètres</a>
+      <a href="#" id="myProfileLink" style="font-size:12px;margin-left:8px">Mon profil</a>
+    </span>
   </div>
   <div id="convoList"></div>
   <div style="padding:12px;border-top:1px solid var(--border)">
@@ -51,6 +55,8 @@
   </div>
   <div class="thread" id="thread"></div>
   <div class="composer">
+    <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none">
+    <button id="mediaBtn" class="ghost" style="width:auto">Image</button>
     <input type="text" id="msgInput" placeholder="Écrire un message...">
     <button id="sendBtn">Envoyer</button>
   </div>
@@ -136,6 +142,14 @@ async function api(path, body) {
     method: "POST",
     headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
     body: JSON.stringify(body || {})
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+async function apiForm(path, formData) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    body: formData
   });
   return { ok: res.ok, data: await res.json() };
 }
@@ -314,7 +328,12 @@ document.getElementById("createConvoBtn").addEventListener("click", async () => 
 
   const members = [{ conversation_id: convo.id, user_id: user.id, role: "admin" }];
   selected.forEach(s => members.push({ conversation_id: convo.id, user_id: s.id, role: s.role }));
-  await sb.from("conversation_members").insert(members);
+  // Insert séparé : la ligne admin du créateur doit être commise avant que
+  // la policy RLS des autres membres puisse la voir (sinon 403).
+  await sb.from("conversation_members").insert(members[0]);
+  if (members.length > 1) {
+    await sb.from("conversation_members").insert(members.slice(1));
+  }
 
   loadConversations();
 });
@@ -357,12 +376,59 @@ async function loadMessages(convo) {
 function renderMessage(m, myId) {
   const div = document.createElement("div");
   div.className = "msg" + (m.sender_id === myId ? " mine" : "");
-  div.textContent = m.plain;
+  if (m.media_url) {
+    const link = document.createElement("a");
+    link.href = m.media_url; link.target = "_blank";
+    link.textContent = "Fichier envoyé (gofile.io)";
+    div.appendChild(link);
+    if (m.media_expires_at) {
+      const cd = document.createElement("p");
+      cd.className = "sub"; cd.style.fontSize = "11px"; cd.style.margin = "4px 0 0";
+      div.appendChild(cd);
+      const tick = () => { cd.textContent = mediaCountdown(m.media_expires_at); };
+      tick();
+      setInterval(tick, 1000);
+    }
+  } else {
+    div.appendChild(document.createTextNode(m.plain ?? ""));
+  }
   document.getElementById("thread").appendChild(div);
+}
+
+function mediaCountdown(expiresAtIso) {
+  const diff = new Date(expiresAtIso).getTime() - Date.now();
+  if (diff <= 0) return "Expiré côté gofile.io";
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return d > 0 ? `Expire dans ${d}j ${h}h` : `Expire dans ${h}h ${m}m ${s}s`;
 }
 
 document.getElementById("sendBtn").addEventListener("click", sendMessage);
 document.getElementById("msgInput").addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
+
+document.getElementById("mediaBtn").addEventListener("click", () => {
+  if (!currentConvo) return showInfo("Choisis une conversation d'abord.");
+  if (currentConvo.encrypted) return showInfo("L'envoi de médias n'est pas encore supporté dans les conversations chiffrées.");
+  document.getElementById("mediaInput").click();
+});
+document.getElementById("mediaInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file || !currentConvo) return;
+  const { data: { user } } = await sb.auth.getUser();
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("kind", "message");
+  const { ok, data } = await apiForm("gofile-upload", formData);
+  e.target.value = "";
+  if (!ok) return showInfo(data.error || "Échec de l'upload.");
+  await sb.from("messages").insert({
+    conversation_id: currentConvo.id, sender_id: user.id,
+    media_url: data.url, media_expires_at: data.expires_at
+  });
+  loadMessages(currentConvo);
+});
 
 async function sendMessage() {
   const input = document.getElementById("msgInput");
@@ -411,6 +477,11 @@ async function loadSecurityBadge() {
   badge.textContent = `Score de sécurité : ${pct}%`;
 }
 loadSecurityBadge();
+
+(async () => {
+  const { data: { user } } = await sb.auth.getUser();
+  document.getElementById("myProfileLink").href = `profile.html?profile=${user.id}`;
+})();
 </script>
 </body>
 </html>

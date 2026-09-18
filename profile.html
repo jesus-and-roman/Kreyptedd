@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kreyptedd — Profil</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap { max-width: 480px; }
+  .banner { width:100%; height:140px; background:var(--panel); border:1px solid var(--border); border-radius:4px; object-fit:cover; }
+  .avatar { width:88px; height:88px; border-radius:50%; background:var(--panel); border:2px solid var(--bg); object-fit:cover; margin-top:-44px; margin-left:16px; }
+  .countdown { font-size:11px; color:var(--text-dim); margin-top:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="content"><p class="sub">Chargement...</p></div>
+  <p class="switch"><a href="app.html">Retour aux conversations</a></p>
+</div>
+
+<script src="config.js"></script>
+<script>
+const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
+const token = localStorage.getItem("session_token");
+if (!token) window.location.href = "login.html";
+
+const params = new URLSearchParams(window.location.search);
+const profileId = params.get("profile");
+
+async function api(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
+    body: JSON.stringify(body || {})
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+
+function formatCountdown(expiresAtIso) {
+  const diff = new Date(expiresAtIso).getTime() - Date.now();
+  if (diff <= 0) return "expiré";
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return d > 0 ? `${d}j ${h}h restantes` : `${h}h ${m}m ${s}s restantes`;
+}
+
+async function load() {
+  if (!profileId) {
+    document.getElementById("content").innerHTML = '<p class="sub">Aucun profil spécifié.</p>';
+    return;
+  }
+  const { data } = await api("get-profile", { profile_id: profileId });
+  const content = document.getElementById("content");
+
+  if (data.locked) {
+    content.innerHTML = `<h1>${data.username}</h1><p class="sub">Ce profil est verrouillé par son propriétaire.</p>`;
+    return;
+  }
+
+  content.innerHTML = `
+    ${data.banner_url ? `<img class="banner" src="${data.banner_url}">` : '<div class="banner"></div>'}
+    ${data.avatar_url ? `<img class="avatar" src="${data.avatar_url}">` : ""}
+    <h1 style="margin-top:14px">${data.username}</h1>
+    ${data.is_owner ? '<p class="sub">C\'est ton profil. Modifie-le dans Paramètres.</p>' : ""}
+    <div id="mediaCountdowns"></div>
+  `;
+
+  const countdowns = document.getElementById("mediaCountdowns");
+  function tick() {
+    let html = "";
+    if (data.avatar_expires_at) html += `<p class="countdown">Photo de profil valide : ${formatCountdown(data.avatar_expires_at)}</p>`;
+    if (data.banner_expires_at) html += `<p class="countdown">Bannière valide : ${formatCountdown(data.banner_expires_at)}</p>`;
+    countdowns.innerHTML = html;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+load();
+</script>
+</body>
+</html>
