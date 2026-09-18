@@ -77,6 +77,42 @@
   </div>
 </div>
 
+<!-- Modal Nouvelle conversation -->
+<div class="modal-bg" id="newConvoModal" style="display:none">
+  <div class="modal">
+    <h1 style="font-size:16px">Nouvelle conversation</h1>
+    <label>Nom</label>
+    <input type="text" id="newConvoName" placeholder="Nom de la conversation">
+    <div class="checkline">
+      <input type="checkbox" id="newConvoEncrypted">
+      <span>Chiffrer cette conversation (nécessite le NIP)</span>
+    </div>
+    <button id="createConvoBtn">Créer</button>
+    <button class="ghost" id="cancelConvoBtn" style="margin-top:8px">Annuler</button>
+  </div>
+</div>
+
+<!-- Modal Suppression -->
+<div class="modal-bg" id="deleteModal" style="display:none">
+  <div class="modal">
+    <h1 style="font-size:16px">Supprimer</h1>
+    <div class="checkline"><input type="radio" name="delScope" id="delMine" value="history_mine"><span>Mon historique seulement</span></div>
+    <div class="checkline"><input type="radio" name="delScope" id="delBoth" value="history_both"><span>Historique des deux</span></div>
+    <div class="checkline"><input type="radio" name="delScope" id="delFull" value="full_chat"><span>Tout supprimer (chat complet)</span></div>
+    <button id="confirmDeleteBtn">Confirmer</button>
+    <button class="ghost" id="cancelDeleteBtn" style="margin-top:8px">Annuler</button>
+    <p class="sub" id="deleteStatus" style="margin-top:10px"></p>
+  </div>
+</div>
+
+<!-- Modal Info (remplace alert()) -->
+<div class="modal-bg" id="infoModal" style="display:none">
+  <div class="modal">
+    <p id="infoMessage"></p>
+    <button id="infoOkBtn">OK</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script>
@@ -102,10 +138,18 @@ async function api(path, body) {
   return { ok: res.ok, data: await res.json() };
 }
 
+function showInfo(msg) {
+  document.getElementById("infoMessage").textContent = msg;
+  document.getElementById("infoModal").style.display = "flex";
+}
+document.getElementById("infoOkBtn").addEventListener("click", () => {
+  document.getElementById("infoModal").style.display = "none";
+});
+
 // ---------- NIP : saisie obligatoire à chaque session ----------
 document.getElementById("nipConfirm").addEventListener("click", () => {
   const val = document.getElementById("nipInput").value;
-  if (!/^\d{12}$/.test(val)) { alert("Le NIP doit contenir exactement 12 chiffres."); return; }
+  if (!/^\d{12}$/.test(val)) { showInfo("Le NIP doit contenir exactement 12 chiffres."); return; }
   nip = val;
   document.getElementById("nipModal").style.display = "none";
   loadConversations();
@@ -137,8 +181,8 @@ canvas.addEventListener("mousemove", (e) => {
 document.getElementById("randomSaveBtn").addEventListener("click", async () => {
   const generated = document.getElementById("randomResult").value;
   const confirmVal = document.getElementById("randomConfirmInput").value;
-  if (!generated) { alert("Bouge la souris sur la grille d'abord."); return; }
-  if (confirmVal !== generated) { alert("La confirmation ne correspond pas au NIP généré."); return; }
+  if (!generated) { showInfo("Bouge la souris sur la grille d'abord."); return; }
+  if (confirmVal !== generated) { showInfo("La confirmation ne correspond pas au NIP généré."); return; }
   nip = generated;
   document.getElementById("nipModal").style.display = "none";
   loadConversations();
@@ -220,14 +264,23 @@ async function loadConversations() {
   });
 }
 
-document.getElementById("newConvoBtn").addEventListener("click", async () => {
-  const name = prompt("Nom de la conversation :");
+document.getElementById("newConvoBtn").addEventListener("click", () => {
+  document.getElementById("newConvoName").value = "";
+  document.getElementById("newConvoEncrypted").checked = false;
+  document.getElementById("newConvoModal").style.display = "flex";
+});
+document.getElementById("cancelConvoBtn").addEventListener("click", () => {
+  document.getElementById("newConvoModal").style.display = "none";
+});
+document.getElementById("createConvoBtn").addEventListener("click", async () => {
+  const name = document.getElementById("newConvoName").value.trim();
   if (!name) return;
-  const encrypted = confirm("Chiffrer cette conversation (nécessite le NIP) ?");
+  const encrypted = document.getElementById("newConvoEncrypted").checked;
   const { data: { user } } = await sb.auth.getUser();
   const { data: convo, error } = await sb.from("conversations")
     .insert({ name, encrypted, created_by: user.id }).select().single();
-  if (error) return alert("Impossible de créer la conversation.");
+  document.getElementById("newConvoModal").style.display = "none";
+  if (error) return showInfo("Impossible de créer la conversation.");
   await sb.from("conversation_members").insert({ conversation_id: convo.id, user_id: user.id });
   loadConversations();
 });
@@ -295,14 +348,22 @@ async function sendMessage() {
 }
 
 // ---------- Suppression ----------
-document.getElementById("deleteMenuBtn").addEventListener("click", async () => {
+document.getElementById("deleteMenuBtn").addEventListener("click", () => {
   if (!currentConvo) return;
-  const choice = prompt("Taper : mine (mon historique) / both (historique des deux) / full (tout supprimer)");
-  const scope = { mine: "history_mine", both: "history_both", full: "full_chat" }[choice];
-  if (!scope) return;
+  document.querySelectorAll('input[name="delScope"]').forEach(r => r.checked = false);
+  document.getElementById("deleteStatus").textContent = "";
+  document.getElementById("deleteModal").style.display = "flex";
+});
+document.getElementById("cancelDeleteBtn").addEventListener("click", () => {
+  document.getElementById("deleteModal").style.display = "none";
+});
+document.getElementById("confirmDeleteBtn").addEventListener("click", async () => {
+  const checked = document.querySelector('input[name="delScope"]:checked');
+  if (!checked) return;
+  const scope = checked.value;
   await api("message-lifecycle", { action: "resolve_deletion", conversation_id: currentConvo.id, scope });
   if (scope === "history_mine") { localStorage.removeItem(cacheKey(currentConvo.id)); }
-  alert("Demande enregistrée.");
+  document.getElementById("deleteStatus").textContent = "Demande enregistrée.";
 });
 
 document.getElementById("nipModal").style.display = "flex";
