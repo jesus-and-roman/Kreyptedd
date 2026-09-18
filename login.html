@@ -32,7 +32,7 @@
       </div>
 
       <div class="checkline" id="tosLine" style="display:none">
-        <input type="checkbox" id="tosAccept" required>
+        <input type="checkbox" id="tosAccept">
         <span>J'accepte les <a href="tos.html" target="_blank">termes et conditions</a></span>
       </div>
 
@@ -132,7 +132,11 @@ form.addEventListener("submit", async (e) => {
     // serveur reste rejouable). Ceci appelle une fonction "signup".
     const res = await fetch(`${SUPABASE_URL}/functions/v1/signup`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY },
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+      },
       body: JSON.stringify({ username, password, email: email || null, newsletter })
     });
     const data = await res.json();
@@ -142,7 +146,11 @@ form.addEventListener("submit", async (e) => {
   } else {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY },
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+      },
       body: JSON.stringify({ username, password })
     });
     const data = await res.json();
@@ -159,7 +167,10 @@ document.getElementById("ipBtn").addEventListener("click", async () => {
   errorMsg.style.display = "none";
   const res = await fetch(`${SUPABASE_URL}/functions/v1/ip-login`, {
     method: "POST",
-    headers: { "apikey": SUPABASE_ANON_KEY }
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+    }
   });
   const data = await res.json();
   if (!res.ok) return showError(data.error || "Connexion anonyme impossible.");
