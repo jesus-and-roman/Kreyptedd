@@ -273,7 +273,7 @@ document.getElementById("newConvoBtn").addEventListener("click", async () => {
   list.innerHTML = '<p class="sub">Chargement...</p>';
   document.getElementById("newConvoModal").style.display = "flex";
 
-  const { data } = await api("contacts-list", {});
+  const { data } = await api("contact-list", {});
   list.innerHTML = "";
   if (!data.contacts || data.contacts.length === 0) {
     list.innerHTML = '<p class="sub">Aucun contact. Ajoute-en depuis la page Contacts.</p>';
