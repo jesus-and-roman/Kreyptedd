@@ -47,7 +47,7 @@ const token = localStorage.getItem("session_token");
 if (!token) window.location.href = "login.html";
 
 async function api(path, body) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
     body: JSON.stringify(body || {})

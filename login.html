@@ -130,7 +130,7 @@ form.addEventListener("submit", async (e) => {
     // Le hash du mot de passe DOIT être fait côté serveur (Edge Function),
     // jamais en clair ni hashé côté client seul (un hash client sans sel
     // serveur reste rejouable). Ceci appelle une fonction "signup".
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/signup`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/signup?apikey=${SUPABASE_ANON_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -144,7 +144,7 @@ form.addEventListener("submit", async (e) => {
     localStorage.setItem("session_token", data.token); // jeton de session applicatif, jamais le NIP
     window.location.href = "app.html";
   } else {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/login`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/login?apikey=${SUPABASE_ANON_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -165,7 +165,7 @@ form.addEventListener("submit", async (e) => {
 // côté client — le navigateur ne connaît pas son IP publique de façon fiable.
 document.getElementById("ipBtn").addEventListener("click", async () => {
   errorMsg.style.display = "none";
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/ip-login`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/ip-login?apikey=${SUPABASE_ANON_KEY}`, {
     method: "POST",
     headers: {
       "apikey": SUPABASE_ANON_KEY,
