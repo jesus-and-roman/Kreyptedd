@@ -142,6 +142,7 @@ form.addEventListener("submit", async (e) => {
     const data = await res.json();
     if (!res.ok) return showError(data.error || "Inscription impossible.");
     localStorage.setItem("session_token", data.token); // jeton de session applicatif, jamais le NIP
+    localStorage.setItem("session_refresh_token", data.refresh_token);
     window.location.href = "app.html";
   } else {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/login?apikey=${SUPABASE_ANON_KEY}`, {
@@ -156,6 +157,7 @@ form.addEventListener("submit", async (e) => {
     const data = await res.json();
     if (!res.ok) return showError(data.error || "Identifiants invalides.");
     localStorage.setItem("session_token", data.token);
+    localStorage.setItem("session_refresh_token", data.refresh_token);
     window.location.href = "app.html";
   }
 });
@@ -175,6 +177,7 @@ document.getElementById("ipBtn").addEventListener("click", async () => {
   const data = await res.json();
   if (!res.ok) return showError(data.error || "Connexion anonyme impossible.");
   localStorage.setItem("session_token", data.token);
+  localStorage.setItem("session_refresh_token", data.refresh_token);
   // Premier passage : le compte a été créé, on affiche son code contact.
   window.location.href = data.is_new ? "welcome-ip.html" : "app.html";
 });

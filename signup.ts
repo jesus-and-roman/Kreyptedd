@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
 
   return jsonResponse({
     token: session.session.access_token,
+    refresh_token: session.session.refresh_token,
     contact_code: contactCode
   }, 201);
 });

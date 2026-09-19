@@ -88,16 +88,33 @@
   <p class="switch"><a href="app.html">Retour aux conversations</a></p>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script>
 const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
 const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
-const token = localStorage.getItem("session_token");
-if (!token) window.location.href = "login.html";
+if (!localStorage.getItem("session_token")) window.location.href = "login.html";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+sb.auth.setSession({
+  access_token: localStorage.getItem("session_token"),
+  refresh_token: localStorage.getItem("session_refresh_token")
+});
+sb.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    localStorage.setItem("session_token", session.access_token);
+    localStorage.setItem("session_refresh_token", session.refresh_token);
+  }
+});
+async function getFreshToken() {
+  const { data } = await sb.auth.getSession();
+  return data.session?.access_token ?? localStorage.getItem("session_token");
+}
 let myId = null;
 let profileData = null;
 
 async function api(path, body) {
+  const token = await getFreshToken();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
@@ -106,6 +123,7 @@ async function api(path, body) {
   return { ok: res.ok, data: await res.json() };
 }
 async function apiForm(path, formData) {
+  const token = await getFreshToken();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
     method: "POST",
     headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
@@ -135,8 +153,8 @@ async function loadScore() {
 async function loadProfile() {
   // On récupère notre propre id via Supabase Auth directement (pas besoin
   // d'appel supplémentaire) : le token JWT contient le sub.
-  const payload = JSON.parse(atob(token.split(".")[1]));
-  myId = payload.sub;
+  const { data: { user } } = await sb.auth.getUser();
+  myId = user.id;
   const { data } = await api("get-profile", { profile_id: myId });
   profileData = data;
   document.getElementById("lockToggle").checked = !!data.profile_locked;
@@ -272,17 +290,7 @@ document.getElementById("lockToggle").addEventListener("change", async (e) => {
 });
 
 async function sbUpdateOwnProfile(fields) {
-  // Passe par une requête REST directe (RLS: un user modifie son propre profil).
-  await fetch(`${SUPABASE_URL}/rest/v1/app_users?id=eq.${myId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${token}`,
-      "Prefer": "return=minimal"
-    },
-    body: JSON.stringify(fields)
-  });
+  await sb.from("app_users").update(fields).eq("id", myId);
 }
 
 document.getElementById("changePwBtn").addEventListener("click", async () => {
@@ -290,12 +298,8 @@ document.getElementById("changePwBtn").addEventListener("click", async () => {
   const errEl = document.getElementById("pwError");
   errEl.style.display = "none";
   if (pw.length < 8) { errEl.textContent = "8 caractères minimum."; errEl.style.display = "block"; return; }
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
-    body: JSON.stringify({ password: pw })
-  });
-  if (!res.ok) { errEl.textContent = "Échec du changement de mot de passe."; errEl.style.display = "block"; return; }
+  const { error } = await sb.auth.updateUser({ password: pw });
+  if (error) { errEl.textContent = "Échec du changement de mot de passe."; errEl.style.display = "block"; return; }
   document.getElementById("newPassword").value = "";
 });
 

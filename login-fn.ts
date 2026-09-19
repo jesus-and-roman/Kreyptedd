@@ -35,5 +35,5 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Nom d'utilisateur ou mot de passe incorrect." }, 401);
   }
 
-  return jsonResponse({ token: data.session.access_token }, 200);
+  return jsonResponse({ token: data.session.access_token, refresh_token: data.session.refresh_token }, 200);
 });

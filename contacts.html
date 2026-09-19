@@ -39,14 +39,31 @@
   <p class="switch"><a href="app.html">Retour aux conversations</a></p>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script>
 const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
 const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
-const token = localStorage.getItem("session_token");
-if (!token) window.location.href = "login.html";
+if (!localStorage.getItem("session_token")) window.location.href = "login.html";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+sb.auth.setSession({
+  access_token: localStorage.getItem("session_token"),
+  refresh_token: localStorage.getItem("session_refresh_token")
+});
+sb.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    localStorage.setItem("session_token", session.access_token);
+    localStorage.setItem("session_refresh_token", session.refresh_token);
+  }
+});
+async function getFreshToken() {
+  const { data } = await sb.auth.getSession();
+  return data.session?.access_token ?? localStorage.getItem("session_token");
+}
 
 async function api(path, body) {
+  const token = await getFreshToken();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
