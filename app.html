@@ -69,7 +69,7 @@
 <div class="modal-bg" id="nipModal">
   <div class="modal">
     <h1 style="font-size:16px">Code NIP (12 chiffres)</h1>
-    <p class="sub">Requis à chaque connexion pour déchiffrer tes conversations protégées. Jamais sauvegardé.</p>
+    <p class="sub">Requis à chaque connexion pour déchiffrer tes conversations protégées. Jamais sauvegardé. Toutes les personnes de la conversation doivent utiliser exactement le même NIP — mets-toi d'accord avec elles en dehors du site.</p>
     <input type="password" id="nipInput" maxlength="12" placeholder="123456789012">
     <button id="nipConfirm">Confirmer</button>
     <p style="text-align:center;margin-top:10px">
@@ -356,12 +356,20 @@ async function readCache(convoId) {
   if (!raw) return [];
   try {
     const obj = JSON.parse(raw);
+    if (Array.isArray(obj)) {
+      // Ancien format (en clair, avant chiffrement du cache) : on migre.
+      await writeCache(convoId, obj);
+      return obj;
+    }
     const key = await deriveKey(nip, "kreyptedd-cache-salt");
     const iv = Uint8Array.from(atob(obj.iv), c => c.charCodeAt(0));
     const cipherBytes = Uint8Array.from(atob(obj.data), c => c.charCodeAt(0));
     const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipherBytes);
     return JSON.parse(new TextDecoder().decode(plainBuf));
-  } catch { return []; }
+  } catch (e) {
+    console.log("Lecture du cache impossible (mauvais NIP ou cache corrompu) :", e);
+    return [];
+  }
 }
 async function writeCache(convoId, arr) {
   const key = await deriveKey(nip, "kreyptedd-cache-salt");
@@ -376,12 +384,16 @@ async function writeCache(convoId, arr) {
 async function loadMessages(convo) {
   const thread = document.getElementById("thread");
   thread.innerHTML = "";
-  const cached = await readCache(convo.id);
   const { data: { user } } = await sb.auth.getUser();
 
-  cached.forEach(m => renderMessage(m, user.id));
+  if (convo.encrypted) {
+    const cached = await readCache(convo.id);
+    cached.forEach(m => renderMessage(m, user.id));
+  }
 
-  const { data: serverMsgs } = await sb.from("messages").select("*").eq("conversation_id", convo.id).order("sent_at");
+  const { data: serverMsgs, error } = await sb.from("messages").select("*").eq("conversation_id", convo.id).order("sent_at");
+  if (error) { console.log("Erreur de lecture des messages :", error); showInfo("Impossible de charger les messages (voir console)."); return; }
+
   for (const m of serverMsgs ?? []) {
     if (!convo.encrypted) {
       renderMessage({ ...m, plain: m.content }, user.id);
@@ -390,7 +402,7 @@ async function loadMessages(convo) {
     m._dateStamp = m.date_stamp;
     const plain = await decryptMessage(m);
     const enriched = { id: m.id, sender_id: m.sender_id, sent_at: m.sent_at, plain };
-    writeCache(convo.id, [...(await readCache(convo.id)), enriched]);
+    await writeCache(convo.id, [...(await readCache(convo.id)), enriched]);
     renderMessage(enriched, user.id);
     await api("message-lifecycle", { action: "ack_read", message_id: m.id });
   }
@@ -523,8 +535,9 @@ document.getElementById("panicWipeBtn").addEventListener("click", () => {
 const AUTOLOCK_KEY = "kreyptedd_autolock_minutes";
 let inactivityTimer = null;
 function resetInactivityTimer() {
-  const minutes = Number(localStorage.getItem(AUTOLOCK_KEY) || "5");
   if (inactivityTimer) clearTimeout(inactivityTimer);
+  if (document.hidden) return; // en pause tant qu'on est sur une autre fenêtre/onglet
+  const minutes = Number(localStorage.getItem(AUTOLOCK_KEY) || "5");
   if (minutes <= 0) return;
   inactivityTimer = setTimeout(() => {
     if (nip) {
@@ -538,6 +551,7 @@ function resetInactivityTimer() {
 ["mousemove", "keydown", "click", "touchstart"].forEach(evt =>
   document.addEventListener(evt, resetInactivityTimer)
 );
+document.addEventListener("visibilitychange", resetInactivityTimer);
 resetInactivityTimer();
 </script>
 </body>

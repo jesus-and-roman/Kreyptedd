@@ -46,6 +46,12 @@
     </div>
   </div>
 
+  <h2>Cache local (messages déchiffrés)</h2>
+  <div class="panel">
+    <p class="sub">Le contenu ci-dessous est tel que stocké dans ton navigateur — les messages y sont chiffrés, pas en clair.</p>
+    <div id="cacheList"></div>
+  </div>
+
   <h2>Effacement d'urgence</h2>
   <div class="panel">
     <p class="sub">Vide immédiatement tout le cache local déchiffré (tous tes messages en cache dans ce navigateur) et te déconnecte. Ne supprime rien côté serveur.</p>
@@ -183,6 +189,76 @@ document.getElementById("panicWipeBtn").addEventListener("click", () => {
   localStorage.removeItem("session_token");
   window.location.href = "login.html";
 });
+
+function renderCacheList() {
+  const box = document.getElementById("cacheList");
+  const keys = Object.keys(localStorage).filter(k => k.startsWith("kreyptedd_cache_"));
+  if (keys.length === 0) {
+    box.innerHTML = '<p class="sub">Aucun cache de conversation pour l\'instant.</p>';
+    return;
+  }
+  box.innerHTML = "";
+  keys.forEach(key => {
+    const convoId = key.replace("kreyptedd_cache_", "");
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <span style="font-size:12px">Conversation ${convoId.slice(0, 8)}...</span>
+      <span class="actions">
+        <button data-key="${key}" class="cacheViewBtn" style="font-size:11px">Voir</button>
+        <button data-key="${key}" class="cacheEditBtn" style="font-size:11px">Modifier</button>
+        <button data-key="${key}" class="cacheDeleteBtn" style="font-size:11px;color:var(--danger)">Supprimer</button>
+      </span>`;
+    box.appendChild(row);
+    const detail = document.createElement("div");
+    detail.id = `detail-${key}`;
+    detail.style.display = "none";
+    detail.style.marginBottom = "12px";
+    box.appendChild(detail);
+  });
+
+  document.querySelectorAll(".cacheDeleteBtn").forEach(btn => btn.addEventListener("click", () => {
+    localStorage.removeItem(btn.dataset.key);
+    renderCacheList();
+  }));
+
+  document.querySelectorAll(".cacheViewBtn").forEach(btn => btn.addEventListener("click", () => {
+    const detail = document.getElementById(`detail-${btn.dataset.key}`);
+    const raw = localStorage.getItem(btn.dataset.key) || "";
+    detail.innerHTML = `<pre style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:10px;font-size:11px;overflow-x:auto;white-space:pre-wrap">${raw.replace(/</g, "&lt;")}</pre>`;
+    detail.style.display = "block";
+  }));
+
+  document.querySelectorAll(".cacheEditBtn").forEach(btn => btn.addEventListener("click", () => {
+    const key = btn.dataset.key;
+    const detail = document.getElementById(`detail-${key}`);
+    const raw = localStorage.getItem(key) || "";
+    detail.innerHTML = `
+      <p class="error" style="display:block">Attention : modifier ce cache à la main peut le corrompre définitivement (messages illisibles ou perdus, sans possibilité de les retrouver côté serveur — ils y sont déjà supprimés). Continue seulement si tu sais ce que tu fais.</p>
+      <textarea id="editArea-${key}" style="width:100%;height:140px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;padding:8px">${raw.replace(/</g, "&lt;")}</textarea>
+      <button data-key="${key}" class="cacheSaveBtn" style="margin-top:8px">Enregistrer les modifications</button>`;
+    detail.style.display = "block";
+    detail.querySelector(".cacheSaveBtn").addEventListener("click", () => {
+      const val = document.getElementById(`editArea-${key}`).value;
+      let err = detail.querySelector(".cacheEditError");
+      if (!err) {
+        err = document.createElement("p");
+        err.className = "error cacheEditError";
+        detail.appendChild(err);
+      }
+      err.style.display = "none";
+      try {
+        JSON.parse(val); // valide au moins que c'est du JSON, pas que le contenu déchiffre correctement
+        localStorage.setItem(key, val);
+        renderCacheList();
+      } catch {
+        err.textContent = "JSON invalide, non enregistré.";
+        err.style.display = "block";
+      }
+    });
+  }));
+}
+renderCacheList();
 
 function tickCountdowns() {
   document.getElementById("avatarCountdown").textContent =
