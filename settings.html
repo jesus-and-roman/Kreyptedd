@@ -113,6 +113,10 @@ async function getFreshToken() {
 let myId = null;
 let profileData = null;
 
+function forceReLogin() {
+  Object.keys(localStorage).filter(k => k.startsWith("session_")).forEach(k => localStorage.removeItem(k));
+  window.location.href = "login.html";
+}
 async function api(path, body) {
   const token = await getFreshToken();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}?apikey=${SUPABASE_ANON_KEY}`, {
@@ -120,7 +124,9 @@ async function api(path, body) {
     headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` },
     body: JSON.stringify(body || {})
   });
-  return { ok: res.ok, data: await res.json() };
+  const data = await res.json();
+  if (res.status === 401) { forceReLogin(); return { ok: false, data }; }
+  return { ok: res.ok, data };
 }
 async function apiForm(path, formData) {
   const token = await getFreshToken();
