@@ -84,8 +84,8 @@ async function load() {
   }
 
   content.innerHTML = `
-    ${data.banner_url ? `<img class="banner" src="${data.banner_url}">` : '<div class="banner"></div>'}
-    ${data.avatar_url ? `<img class="avatar" src="${data.avatar_url}">` : ""}
+    ${data.banner_url ? `<img class="banner" src="${data.banner_url}" onerror="this.outerHTML='<div class=&quot;banner&quot;></div><p class=&quot;sub&quot;>Bannière non intégrable directement — <a href=&quot;${data.banner_url}&quot; target=&quot;_blank&quot;>voir sur gofile.io</a></p>'">` : '<div class="banner"></div>'}
+    ${data.avatar_url ? `<img class="avatar" src="${data.avatar_url}" onerror="this.outerHTML='<p class=&quot;sub&quot;>Photo de profil non intégrable directement — <a href=&quot;${data.avatar_url}&quot; target=&quot;_blank&quot;>voir sur gofile.io</a></p>'">` : ""}
     <h1 style="margin-top:14px">${data.display_name || data.username}</h1>
     <p class="sub">@${data.username}</p>
     ${data.bio ? `<p style="margin-top:8px">${data.bio}</p>` : ""}

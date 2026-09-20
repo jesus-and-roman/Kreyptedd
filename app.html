@@ -68,9 +68,9 @@
 <!-- Modal NIP -->
 <div class="modal-bg" id="nipModal">
   <div class="modal">
-    <h1 style="font-size:16px">Code NIP (12 chiffres)</h1>
-    <p class="sub">Requis à chaque connexion pour déchiffrer tes conversations protégées. Jamais sauvegardé. Toutes les personnes de la conversation doivent utiliser exactement le même NIP — mets-toi d'accord avec elles en dehors du site.</p>
-    <input type="password" id="nipInput" maxlength="12" placeholder="123456789012">
+    <h1 style="font-size:16px">NIP de cette conversation (6 chiffres)</h1>
+    <p class="sub">Propre à cette conversation, choisi par son créateur. Jamais sauvegardé, redemandé à chaque fois que tu l'ouvres. Toutes les personnes de la conversation doivent utiliser exactement le même NIP — mets-toi d'accord avec elles en dehors du site.</p>
+    <input type="password" id="nipInput" maxlength="6" placeholder="123456">
     <button id="nipConfirm">Confirmer</button>
     <p style="text-align:center;margin-top:10px">
       <button class="linkbtn" id="randomizeToggle">Randomiser un nouveau NIP avec la souris</button>
@@ -80,7 +80,7 @@
       <p class="sub" id="randomHint">Bouge la souris sur la grille pour générer un code.</p>
       <input type="text" id="randomResult" readonly>
       <label>Confirme le nouveau NIP</label>
-      <input type="password" id="randomConfirmInput" maxlength="12">
+      <input type="password" id="randomConfirmInput" maxlength="6">
       <button id="randomSaveBtn" class="ghost">Utiliser ce NIP</button>
     </div>
   </div>
@@ -94,7 +94,12 @@
     <input type="text" id="newConvoName" placeholder="Nom de la conversation">
     <div class="checkline">
       <input type="checkbox" id="newConvoEncrypted">
-      <span>Chiffrer cette conversation (nécessite le NIP)</span>
+      <span>Chiffrer cette conversation (nécessite un NIP à 6 chiffres)</span>
+    </div>
+    <div id="newConvoNipBox" style="display:none">
+      <label>NIP de cette conversation (6 chiffres)</label>
+      <input type="password" id="newConvoNip" maxlength="6" placeholder="123456">
+      <p class="sub" style="font-size:11px">Choisis-en un et transmets-le aux autres membres en dehors du site. Jamais sauvegardé.</p>
     </div>
     <label>Contacts à ajouter</label>
     <div id="convoContactList" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:3px;padding:8px"></div>
@@ -184,13 +189,13 @@ document.getElementById("infoOkBtn").addEventListener("click", () => {
   document.getElementById("infoModal").style.display = "none";
 });
 
-// ---------- NIP : saisie obligatoire à chaque session ----------
+// ---------- NIP : redemandé à chaque ouverture de conversation chiffrée ----------
 document.getElementById("nipConfirm").addEventListener("click", () => {
   const val = document.getElementById("nipInput").value;
-  if (!/^\d{12}$/.test(val)) { showInfo("Le NIP doit contenir exactement 12 chiffres."); return; }
+  if (!/^\d{6}$/.test(val)) { showInfo("Le NIP doit contenir exactement 6 chiffres."); return; }
   nip = val;
   document.getElementById("nipModal").style.display = "none";
-  loadConversations();
+  if (pendingConvo) { loadMessages(pendingConvo); pendingConvo = null; }
 });
 
 // ---------- Randomisation du NIP par grille souris ----------
@@ -210,8 +215,8 @@ canvas.addEventListener("mousemove", (e) => {
   ctx.fillStyle = "#a9c9e8";
   ctx.fillRect(x, y, 2, 2);
   if (entropy.length >= 40) {
-    const digest = entropy.reduce((acc, v) => (acc * 33 + v) % 1_000_000_000_000, 7);
-    const code = String(digest).padStart(12, "0").slice(0, 12);
+    const digest = entropy.reduce((acc, v) => (acc * 33 + v) % 1_000_000, 7);
+    const code = String(digest).padStart(6, "0").slice(0, 6);
     document.getElementById("randomResult").value = code;
   }
 });
@@ -223,7 +228,7 @@ document.getElementById("randomSaveBtn").addEventListener("click", async () => {
   if (confirmVal !== generated) { showInfo("La confirmation ne correspond pas au NIP généré."); return; }
   nip = generated;
   document.getElementById("nipModal").style.display = "none";
-  loadConversations();
+  if (pendingConvo) { loadMessages(pendingConvo); pendingConvo = null; }
 });
 
 // ---------- Crypto : dérivation de clé AES-GCM depuis le NIP ----------
@@ -305,6 +310,8 @@ async function loadConversations() {
 document.getElementById("newConvoBtn").addEventListener("click", async () => {
   document.getElementById("newConvoName").value = "";
   document.getElementById("newConvoEncrypted").checked = false;
+  document.getElementById("newConvoNip").value = "";
+  document.getElementById("newConvoNipBox").style.display = "none";
   const list = document.getElementById("convoContactList");
   list.innerHTML = '<p class="sub">Chargement...</p>';
   document.getElementById("newConvoModal").style.display = "flex";
@@ -328,6 +335,9 @@ document.getElementById("newConvoBtn").addEventListener("click", async () => {
     list.appendChild(row);
   });
 });
+document.getElementById("newConvoEncrypted").addEventListener("change", (e) => {
+  document.getElementById("newConvoNipBox").style.display = e.target.checked ? "block" : "none";
+});
 document.getElementById("cancelConvoBtn").addEventListener("click", () => {
   document.getElementById("newConvoModal").style.display = "none";
 });
@@ -335,6 +345,10 @@ document.getElementById("createConvoBtn").addEventListener("click", async () => 
   const name = document.getElementById("newConvoName").value.trim();
   if (!name) return;
   const encrypted = document.getElementById("newConvoEncrypted").checked;
+  const chosenNip = document.getElementById("newConvoNip").value;
+  if (encrypted && !/^\d{6}$/.test(chosenNip)) {
+    return showInfo("Le NIP de cette conversation doit contenir exactement 6 chiffres.");
+  }
 
   const selected = [];
   document.querySelectorAll(".convoContactCheck:checked").forEach(chk => {
@@ -358,12 +372,21 @@ document.getElementById("createConvoBtn").addEventListener("click", async () => 
   }
 
   loadConversations();
+
 });
+
+let pendingConvo = null; // conversation en attente de saisie du NIP
 
 async function openConvo(convo) {
   currentConvo = convo;
   document.getElementById("convoTitle").textContent = convo.name + (convo.encrypted ? " — chiffré" : "");
-  if (convo.encrypted && !nip) { document.getElementById("nipModal").style.display = "flex"; return; }
+  if (convo.encrypted) {
+    nip = null; // on redemande systématiquement le NIP propre à cette conversation
+    pendingConvo = convo;
+    document.getElementById("nipInput").value = "";
+    document.getElementById("nipModal").style.display = "flex";
+    return;
+  }
   await loadMessages(convo);
 }
 
@@ -493,7 +516,7 @@ async function sendMessage() {
   if (!currentConvo.encrypted) {
     await sb.from("messages").insert({ conversation_id: currentConvo.id, sender_id: user.id, content: text });
   } else {
-    if (!nip) { document.getElementById("nipModal").style.display = "flex"; return; }
+    if (!nip) { pendingConvo = currentConvo; document.getElementById("nipInput").value = ""; document.getElementById("nipModal").style.display = "flex"; return; }
     const { encrypted_payload, iv, date_stamp } = await encryptMessage(text, currentConvo.id);
     await sb.from("messages").insert({ conversation_id: currentConvo.id, sender_id: user.id, encrypted_payload, iv, date_stamp });
   }
@@ -520,7 +543,7 @@ document.getElementById("confirmDeleteBtn").addEventListener("click", async () =
   document.getElementById("deleteStatus").textContent = "Demande enregistrée.";
 });
 
-document.getElementById("nipModal").style.display = "flex";
+loadConversations();
 
 async function loadSecurityBadge() {
   const { data } = await api("security-status", {});
@@ -561,7 +584,9 @@ function resetInactivityTimer() {
   inactivityTimer = setTimeout(() => {
     if (nip) {
       nip = null;
+      pendingConvo = currentConvo;
       document.getElementById("thread").innerHTML = "";
+      document.getElementById("nipInput").value = "";
       showInfo("Session verrouillée par inactivité. Ressaisis ton NIP.");
       document.getElementById("nipModal").style.display = "flex";
     }

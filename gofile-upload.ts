@@ -78,10 +78,16 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Échec de l'upload gofile." }, 502);
     }
 
-    const url = uploadJson.data?.downloadPage ?? uploadJson.data?.file?.link;
+    const directLink = uploadJson.data?.directLink;
+    const downloadPage = uploadJson.data?.downloadPage;
+    // directLink n'est fourni que pour les comptes gofile payants ("donor") ;
+    // sur un compte standard, seul downloadPage existe (une page web, pas
+    // intégrable en <img>). On renvoie le meilleur des deux + un indicateur.
+    const url = directLink || downloadPage;
+    const isDirect = !!directLink;
     const expiresAt = new Date(Date.now() + DEFAULT_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    return jsonResponse({ url, expires_at: expiresAt, kind }, 200);
+    return jsonResponse({ url, is_direct: isDirect, expires_at: expiresAt, kind }, 200);
   } catch (e) {
     console.log("gofile-upload erreur ->", String(e));
     return jsonResponse({ error: "Erreur pendant l'upload." }, 500);
