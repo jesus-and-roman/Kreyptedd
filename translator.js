@@ -28,6 +28,8 @@ const KreyptedTranslator = (() => {
 
   let dictPromise = null;
 
+  const DEFAULT_ORDER = ["en", "ru", "es", "fr", "de"];
+
   function parse(text) {
     const dict = { SYSTEM: {}, CHAT: {} };
     let section = null;
@@ -41,11 +43,17 @@ const KreyptedTranslator = (() => {
       if (!section) return;
 
       if (!order) {
-        order = line.split("=").map(s => {
-          const key = s.trim().toLowerCase();
-          return LANG_NAMES[key] || key;
-        });
-        return;
+        if (line.startsWith('"')) {
+          // Pas de ligne d'ordre dans ce fichier : on utilise l'ordre par
+          // défaut et cette ligne est déjà une ligne de données.
+          order = DEFAULT_ORDER;
+        } else {
+          order = line.split("=").map(s => {
+            const key = s.trim().toLowerCase();
+            return LANG_NAMES[key] || key;
+          });
+          return;
+        }
       }
 
       const values = [...line.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m => m[1]);
@@ -72,12 +80,32 @@ const KreyptedTranslator = (() => {
     return dictPromise;
   }
 
+  // Un "..." dans une chaîne représente une partie dynamique (ex: un nombre)
+  // à préserver telle quelle. Ex: "Score de sécurité : ..." matche
+  // "Score de sécurité : 87%" et ne traduit que la partie fixe.
+  function matchTemplate(text, template) {
+    const idx = template.indexOf("...");
+    if (idx === -1) return null;
+    const prefix = template.slice(0, idx);
+    const suffix = template.slice(idx + 3);
+    if (text.startsWith(prefix) && text.endsWith(suffix) && text.length >= prefix.length + suffix.length) {
+      return text.slice(prefix.length, text.length - suffix.length);
+    }
+    return null;
+  }
+
   // Traduit l'interface visible sur la page courante vers `lang` (code:
   // "en","ru","es","fr","de"). Ne touche pas aux zones marquées
   // data-no-translate (contenu utilisateur : messages, noms, bios...).
   async function applySystem(lang) {
     if (!lang || lang === "fr") return; // le site est écrit en français à la base
     const dict = await loadDict();
+
+    const templateRows = new Set();
+    Object.values(dict.SYSTEM).forEach(row => {
+      if (row.fr && row.fr.includes("...")) templateRows.add(row);
+    });
+
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         if (!node.textContent.trim()) return NodeFilter.FILTER_REJECT;
@@ -89,10 +117,23 @@ const KreyptedTranslator = (() => {
     const nodes = [];
     let n;
     while ((n = walker.nextNode())) nodes.push(n);
+
     nodes.forEach(node => {
       const trimmed = node.textContent.trim();
       const row = dict.SYSTEM[trimmed];
-      if (row && row[lang]) node.textContent = node.textContent.replace(trimmed, row[lang]);
+      if (row && row[lang]) {
+        node.textContent = node.textContent.replace(trimmed, row[lang]);
+        return;
+      }
+      // Pas de correspondance exacte : essayer les gabarits avec "..."
+      for (const tRow of templateRows) {
+        const dynamic = matchTemplate(trimmed, tRow.fr);
+        if (dynamic !== null && tRow[lang]) {
+          const translated = tRow[lang].replace("...", dynamic);
+          node.textContent = node.textContent.replace(trimmed, translated);
+          break;
+        }
+      }
     });
 
     // Placeholders et attributs value des boutons/inputs, aussi traduisibles.
@@ -119,6 +160,20 @@ const KreyptedTranslator = (() => {
   function initFromSettings() {
     const siteLang = localStorage.getItem("kreyptedd_site_lang");
     if (siteLang && siteLang !== "fr") applySystem(siteLang);
+
+    // Beaucoup de contenu de ce site est injecté dynamiquement après le
+    // chargement initial (listes de conversations, contacts, score...).
+    // On réapplique la traduction à chaque changement du DOM. Sans risque
+    // de boucle : un texte déjà traduit ne correspond plus à la clé
+    // française du dictionnaire, donc applySystem ne le retouche pas.
+    let pending = null;
+    const observer = new MutationObserver(() => {
+      const lang = localStorage.getItem("kreyptedd_site_lang");
+      if (!lang || lang === "fr") return;
+      if (pending) return;
+      pending = setTimeout(() => { pending = null; applySystem(lang); }, 150);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
 
   return { loadDict, applySystem, translateChat, initFromSettings };

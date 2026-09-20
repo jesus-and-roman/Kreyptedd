@@ -19,6 +19,27 @@
 <div class="wrap">
   <h1>Paramètres</h1>
 
+  <h2>Langue</h2>
+  <div class="panel">
+    <label>Langue du site (interface : boutons, menus, textes)</label>
+    <select id="siteLangSelect">
+      <option value="fr">Français</option>
+      <option value="en">English</option>
+      <option value="ru">Русский</option>
+      <option value="es">Español</option>
+      <option value="de">Deutsch</option>
+    </select>
+    <label style="margin-top:16px">Traduction du chat (locale, mot à mot — n'affecte que ton affichage)</label>
+    <select id="chatLangSelect">
+      <option value="fr">Aucune (afficher tel quel)</option>
+      <option value="en">English</option>
+      <option value="ru">Русский</option>
+      <option value="es">Español</option>
+      <option value="de">Deutsch</option>
+    </select>
+    <p class="sub" style="font-size:11px;margin-top:6px">Remplace les mots connus du dictionnaire dans les messages affichés, sans changer la syntaxe. Les mots inconnus restent tels quels. Les messages envoyés/stockés/chiffrés ne sont jamais modifiés — c'est purement local.</p>
+  </div>
+
   <h2>Personnalisation</h2>
   <div class="panel">
     <label>Surnom affiché (facultatif)</label>
@@ -103,6 +124,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
+<script src="translator.js"></script>
 <script>
 const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
 const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
@@ -390,6 +412,16 @@ document.getElementById("confirmDeleteAccountBtn").addEventListener("click", asy
     if (k.startsWith("kreyptedd_") || k.startsWith("session_")) localStorage.removeItem(k);
   });
   window.location.href = "login.html";
+});
+
+document.getElementById("siteLangSelect").value = localStorage.getItem("kreyptedd_site_lang") || "fr";
+document.getElementById("siteLangSelect").addEventListener("change", (e) => {
+  localStorage.setItem("kreyptedd_site_lang", e.target.value);
+  window.location.reload();
+});
+document.getElementById("chatLangSelect").value = localStorage.getItem("kreyptedd_chat_lang") || "fr";
+document.getElementById("chatLangSelect").addEventListener("change", (e) => {
+  localStorage.setItem("kreyptedd_chat_lang", e.target.value);
 });
 
 loadScore();

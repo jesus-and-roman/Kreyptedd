@@ -135,6 +135,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
+<script src="translator.js"></script>
 <script>
 const SUPABASE_URL = KREYPTEDD_CONFIG.SUPABASE_URL;
 const SUPABASE_ANON_KEY = KREYPTEDD_CONFIG.SUPABASE_ANON_KEY;
@@ -305,7 +306,7 @@ async function loadConversations() {
   convos.forEach(c => {
     const el = document.createElement("div");
     el.className = "convo";
-    el.innerHTML = `${c.name || "Conversation"} ${c.encrypted ? '<span class="lock">chiffré</span>' : ""}`;
+    el.innerHTML = `<span data-no-translate>${c.name || "Conversation"}</span> ${c.encrypted ? '<span class="lock">chiffré</span>' : ""}`;
     el.addEventListener("click", () => openConvo(c));
     list.appendChild(el);
   });
@@ -454,9 +455,10 @@ async function loadMessages(convo) {
   }
 }
 
-function renderMessage(m, myId) {
+async function renderMessage(m, myId) {
   const div = document.createElement("div");
   div.className = "msg" + (m.sender_id === myId ? " mine" : "");
+  div.setAttribute("data-no-translate", ""); // le contenu du chat suit sa propre logique de traduction, pas #-SYSTEM
   if (m.media_url) {
     const link = document.createElement("a");
     link.href = m.media_url; link.target = "_blank";
@@ -471,7 +473,9 @@ function renderMessage(m, myId) {
       setInterval(tick, 1000);
     }
   } else {
-    div.appendChild(document.createTextNode(m.plain ?? ""));
+    const chatLang = localStorage.getItem("kreyptedd_chat_lang");
+    const displayed = await KreyptedTranslator.translateChat(m.plain ?? "", chatLang);
+    div.appendChild(document.createTextNode(displayed));
   }
   document.getElementById("thread").appendChild(div);
 }
