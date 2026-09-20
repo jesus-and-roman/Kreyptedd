@@ -11,6 +11,23 @@
 
 * { box-sizing: border-box; }
 
+@keyframes kd-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes kd-scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes kd-fade-in-simple {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes kd-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -18,12 +35,14 @@ body {
   font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   font-size: 15px;
   line-height: 1.5;
+  animation: kd-fade-in-simple 0.35s ease;
 }
 
 .wrap {
   max-width: 380px;
   margin: 8vh auto;
   padding: 0 20px;
+  animation: kd-fade-in 0.4s ease;
 }
 
 h1 {
@@ -43,7 +62,9 @@ h1 {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 20px;
+  transition: border-color 0.2s ease, transform 0.15s ease;
 }
+.panel:hover { border-color: var(--accent-dim); }
 
 label {
   display: block;
@@ -56,7 +77,9 @@ label:first-child { margin-top: 0; }
 
 input[type="text"],
 input[type="password"],
-input[type="email"] {
+input[type="email"],
+select,
+textarea {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -64,11 +87,13 @@ input[type="email"] {
   color: var(--text);
   padding: 9px 10px;
   font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-input:focus {
+input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px rgba(169, 201, 232, 0.15);
 }
 
 .checkline {
@@ -82,8 +107,8 @@ input:focus {
 
 .checkline input { margin-top: 3px; }
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a { color: var(--accent); text-decoration: none; transition: color 0.2s ease, opacity 0.2s ease; }
+a:hover { text-decoration: underline; opacity: 0.85; }
 
 button {
   width: 100%;
@@ -96,15 +121,19 @@ button {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
 }
 
-button:hover { background: var(--accent-dim); color: var(--text); }
+button:hover { background: var(--accent-dim); color: var(--text); transform: translateY(-1px); }
+button:active { transform: translateY(0) scale(0.98); }
 
 button.ghost {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease;
 }
+button.ghost:hover { border-color: var(--accent-dim); background: rgba(169, 201, 232, 0.08); }
 
 .switch {
   text-align: center;

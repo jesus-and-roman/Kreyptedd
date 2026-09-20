@@ -7,7 +7,8 @@
 <link rel="stylesheet" href="style.css">
 <style>
   .wrap { max-width: 480px; }
-  .row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); transition:background 0.2s ease; animation:kd-fade-in 0.25s ease; }
+  .row:hover { background:rgba(169, 201, 232, 0.05); }
   .row:last-child { border-bottom:none; }
   .row span.name { font-weight:600; }
   .row .actions button { width:auto; margin:0 0 0 8px; padding:6px 10px; font-size:12px; }
