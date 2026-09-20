@@ -86,6 +86,18 @@
     <button id="logoutBtn" class="ghost">Se déconnecter</button>
   </div>
 
+  <h2>Zone dangereuse</h2>
+  <div class="panel">
+    <p class="sub">Supprime définitivement ton compte : profil, messages envoyés, contacts, demandes, blocages, avatar/bannière. Les autres personnes perdent l'accès à leurs conversations avec toi. Aucune récupération possible après ça.</p>
+    <button id="showDeleteAccountBtn" class="ghost" style="border-color:var(--danger);color:var(--danger)">Supprimer mon compte</button>
+    <div id="deleteAccountBox" style="display:none;margin-top:14px">
+      <label>Tape SUPPRIMER en majuscules pour confirmer</label>
+      <input type="text" id="deleteAccountConfirm" placeholder="SUPPRIMER">
+      <button id="confirmDeleteAccountBtn" style="background:var(--danger);color:#1b1e22;margin-top:10px">Supprimer définitivement</button>
+      <p class="error" id="deleteAccountError" style="display:none"></p>
+    </div>
+  </div>
+
   <p class="switch"><a href="app.html">Retour aux conversations</a></p>
 </div>
 
@@ -312,14 +324,35 @@ document.getElementById("changePwBtn").addEventListener("click", async () => {
   document.getElementById("newPassword").value = "";
 });
 
+async function stripImageMetadata(file) {
+  if (!file.type.startsWith("image/")) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(url);
+        resolve(blob ? new File([blob], file.name, { type: blob.type }) : file);
+      }, file.type === "image/png" ? "image/png" : "image/jpeg", 0.92);
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
 async function uploadMedia(inputId, kind) {
   const input = document.getElementById(inputId);
   if (!input.files[0]) return;
+  const file = await stripImageMetadata(input.files[0]);
   const formData = new FormData();
-  formData.append("file", input.files[0]);
+  formData.append("file", file);
   formData.append("kind", kind);
   const { ok, data } = await apiForm("gofile-upload", formData);
-  if (!ok) { alert(data.error || "Échec de l'upload."); return; }
+  if (!ok) { showInfoInline(data.error || "Échec de l'upload."); return; }
   const field = kind === "avatar" ? "avatar_url" : "banner_url";
   const expField = kind === "avatar" ? "avatar_expires_at" : "banner_expires_at";
   await sbUpdateOwnProfile({ [field]: data.url, [expField]: data.expires_at });
@@ -332,6 +365,30 @@ document.getElementById("bannerUploadBtn").addEventListener("click", () => uploa
 
 document.getElementById("logoutBtn").addEventListener("click", () => {
   localStorage.removeItem("session_token");
+  window.location.href = "login.html";
+});
+
+document.getElementById("showDeleteAccountBtn").addEventListener("click", () => {
+  document.getElementById("deleteAccountBox").style.display = "block";
+});
+document.getElementById("confirmDeleteAccountBtn").addEventListener("click", async () => {
+  const val = document.getElementById("deleteAccountConfirm").value;
+  const errEl = document.getElementById("deleteAccountError");
+  errEl.style.display = "none";
+  if (val !== "SUPPRIMER") {
+    errEl.textContent = "Tape exactement SUPPRIMER pour confirmer.";
+    errEl.style.display = "block";
+    return;
+  }
+  const { ok, data } = await api("delete-account", { confirm: "SUPPRIMER" });
+  if (!ok) {
+    errEl.textContent = data.error || "Échec de la suppression.";
+    errEl.style.display = "block";
+    return;
+  }
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith("kreyptedd_") || k.startsWith("session_")) localStorage.removeItem(k);
+  });
   window.location.href = "login.html";
 });
 

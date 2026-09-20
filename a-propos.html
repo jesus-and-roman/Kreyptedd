@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kreyptedd — À propos</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap { max-width: 720px; }
+  h2 { font-size: 17px; margin: 32px 0 10px; color: var(--text); }
+  h3 { font-size: 14px; margin: 20px 0 6px; color: var(--accent); }
+  p { margin: 0 0 12px; color: var(--text-dim); }
+  p.lead { color: var(--text); }
+  ul { margin: 0 0 14px; padding-left: 20px; color: var(--text-dim); }
+  li { margin-bottom: 6px; }
+  .panel { margin-bottom: 4px; }
+  .badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:10px; margin-right:6px; }
+  .badge.stored { background: rgba(217,139,139,0.15); color: var(--danger); }
+  .badge.notstored { background: rgba(169,201,232,0.15); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>À propos de Kreyptedd</h1>
+  <p class="sub">Ce que fait ce site, ce qu'il ne fait pas, et comment il traite tes messages.</p>
+
+  <div class="panel">
+    <h2 style="margin-top:0">Notre but</h2>
+    <p class="lead">Kreyptedd est un service de messagerie pensé pour minimiser ce qu'il sait sur les personnes qui l'utilisent. Un compte peut exister sans email, sans nom réel, et même sans mot de passe choisi (le mode anonyme par IP). L'objectif n'est pas de se substituer à des messageries chiffrées de bout en bout établies et auditées, mais d'offrir un espace de discussion où le minimum d'informations identifiantes est collecté, et où ce qui est collecté est expliqué clairement plutôt que caché dans des conditions d'utilisation illisibles.</p>
+
+    <h2>Respect des droits</h2>
+    <ul>
+      <li>Tu peux créer un compte sans donner d'email. L'email, quand il est fourni, sert uniquement aux bulletins d'update si tu les demandes — jamais à autre chose.</li>
+      <li>Tu peux supprimer ton compte à tout moment depuis Paramètres. La suppression retire ta ligne de compte, tes messages envoyés, tes contacts, tes demandes de contact, tes blocages et ton avatar/bannière de la base de données. C'est irréversible.</li>
+      <li>Tu peux bloquer une personne : elle ne peut alors plus t'envoyer de demande de contact.</li>
+      <li>Tu peux verrouiller ton profil public pour qu'il ne soit consultable par personne d'autre que toi.</li>
+      <li>Rien n'est vendu, ni à des annonceurs ni à qui que ce soit. Il n'y a pas de publicité sur ce site.</li>
+    </ul>
+
+    <h2>Ce qui est réellement enregistré, et ce qui ne l'est pas</h2>
+    <p>Une messagerie qui prétend "tout chiffrer" sans dire précisément quoi ni comment n'est pas digne de confiance. Voici donc, sans détour, ce que la base de données contient et ce qu'elle ne contient jamais :</p>
+
+    <h3>Jamais enregistré</h3>
+    <ul>
+      <li><span class="badge notstored">Jamais stocké</span> Le NIP de déchiffrement d'une conversation chiffrée. Il n'existe que dans la mémoire de ton navigateur, le temps de la session, et disparaît dès que tu changes de page, fermes l'onglet, ou que le verrouillage automatique par inactivité se déclenche.</li>
+      <li><span class="badge notstored">Jamais stocké</span> Ton adresse IP en clair. Les comptes anonymes par IP utilisent un hash à sens unique (SHA-256 salé) : impossible de retrouver l'IP d'origine à partir de ce qui est en base.</li>
+      <li><span class="badge notstored">Jamais stocké</span> Le contenu en clair d'un message chiffré, une fois qu'il a été lu. Le serveur supprime la ligne définitivement dès que le destinataire confirme l'avoir déchiffré et mis en cache local.</li>
+      <li><span class="badge notstored">Jamais stocké</span> Ton mot de passe en clair. Il est géré par le système d'authentification de Supabase, qui applique un hachage standard (bcrypt) — même l'équipe qui exploite ce site ne peut pas le lire.</li>
+    </ul>
+
+    <h3>Enregistré, avec justification</h3>
+    <ul>
+      <li><span class="badge stored">Stocké</span> Le contenu des messages non chiffrés ("discussions quotidiennes"), en clair, tant que l'un des participants ne demande pas leur suppression. C'est le prix de ne pas avoir à saisir de NIP pour ces échanges.</li>
+      <li><span class="badge stored">Stocké</span> Le contenu chiffré (le résultat final de la hasardisation + AES-GCM) d'un message, jusqu'à sa première lecture par le destinataire — ensuite il est supprimé, voir plus haut.</li>
+      <li><span class="badge stored">Stocké</span> Ton nom d'utilisateur, ton code de contact, et si tu les as renseignés : ton surnom d'affichage, ta bio, ta couleur d'accent, ton avatar et ta bannière (hébergés sur gofile.io, pas sur nos serveurs).</li>
+      <li><span class="badge stored">Stocké</span> Un journal des tentatives de calcul de la couche de hasardisation (date, réussite/échec, IP hashée) — sert uniquement à détecter des patterns de brute force et à calculer le score de sécurité système, jamais à profiler une personne en particulier.</li>
+    </ul>
+
+    <h2>Comment fonctionne le chiffrement, en détail</h2>
+    <p>Il y a deux niveaux de protection bien distincts pour les conversations chiffrées, et il est important de comprendre ce que chacun protège réellement.</p>
+
+    <h3>1. La hasardisation (obscurcissement, pas une clé de chiffrement)</h3>
+    <p>Avant tout chiffrement, le texte du message est réordonné un certain nombre de fois ("rounds"), un nombre calculé à partir de l'horodatage d'envoi et d'une formule tenue secrète côté serveur (jamais envoyée au navigateur). Cette étape rend le message illisible même si quelqu'un intercepte la donnée brute avant le chiffrement, mais il faut être honnête : ce n'est pas de la cryptographie au sens propre. Un système suffisamment déterminé qui obtiendrait un accès prolongé au serveur pourrait, en théorie, reconstituer cette formule. C'est une couche d'obscurcissement additionnelle, pas la seule ligne de défense.</p>
+
+    <h3>2. Le chiffrement AES-GCM (la vraie protection cryptographique)</h3>
+    <p>Le résultat de la hasardisation est ensuite chiffré avec AES-GCM 256 bits, une norme de chiffrement reconnue et éprouvée. La clé de chiffrement n'est jamais transmise : elle est dérivée, entièrement dans ton navigateur, à partir du NIP à 6 chiffres de la conversation (via PBKDF2, 150 000 itérations). Le serveur ne voit et ne stocke jamais cette clé, ni le NIP qui a servi à la calculer.</p>
+
+    <h3>Ce que ça implique concrètement</h3>
+    <ul>
+      <li>Le NIP d'une conversation chiffrée n'est pas un mot de passe de compte : c'est un secret partagé entre les personnes de cette conversation. Il faut se le transmettre en dehors du site (de vive voix, par un autre canal).</li>
+      <li>Si quelqu'un tape le mauvais NIP, il n'obtient pas une erreur claire mais un message illisible — c'est le comportement normal d'un déchiffrement avec la mauvaise clé, pas un bug.</li>
+      <li>Une fois un message déchiffré dans ton navigateur, il est mis en cache localement (chiffré avec ce même NIP) et supprimé du serveur. Si tu vides ce cache (ou utilises l'effacement d'urgence), ce message n'existe plus nulle part — y compris pour toi.</li>
+      <li>Le score de sécurité système visible dans l'application reflète la robustesse observée de la couche de hasardisation dans le temps ; il baisse si un pattern de contournement est détecté. Il ne mesure pas la force du chiffrement AES-GCM lui-même, qui reste une norme indépendante de ce score.</li>
+    </ul>
+
+    <h3>Où est simulé, où est réel</h3>
+    <p>Rien dans le mécanisme de chiffrement décrit ci-dessus n'est une simulation : la dérivation de clé, le chiffrement AES-GCM et la suppression des messages lus se produisent réellement, à chaque envoi et chaque lecture. La seule partie volontairement opaque est la formule exacte de hasardisation, gardée secrète côté serveur par conception — pas pour tromper, mais parce que la publier n'apporterait rien à la sécurité et faciliterait son contournement.</p>
+
+    <h2>Limites honnêtes</h2>
+    <ul>
+      <li>Ce site est un projet indépendant, pas un produit audité par des chercheurs en sécurité tiers. Ne l'utilise pas pour des communications où la conséquence d'une fuite serait grave.</li>
+      <li>Les fichiers envoyés (images, vidéos) transitent par gofile.io, un service tiers, et n'héritent pas du chiffrement des messages. Les métadonnées des images sont retirées avant l'envoi ; ce n'est pas encore le cas pour les vidéos.</li>
+      <li>GitHub Pages et Supabase, qui hébergent ce site, ont leurs propres journaux d'infrastructure (adresse IP de connexion à leurs serveurs, par exemple) sur lesquels Kreyptedd n'a aucun contrôle direct.</li>
+    </ul>
+
+    <p class="switch" style="margin-top:24px"><a href="app.html">Retour aux conversations</a></p>
+  </div>
+</div>
+</body>
+</html>

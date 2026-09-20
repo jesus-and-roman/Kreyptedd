@@ -37,6 +37,9 @@
   <h2>Mes contacts</h2>
   <div class="panel" id="contactList"><p class="sub">Aucun contact.</p></div>
 
+  <h2>Utilisateurs bloqués</h2>
+  <div class="panel" id="blockedList"><p class="sub">Personne de bloqué.</p></div>
+
   <p class="switch"><a href="app.html">Retour aux conversations</a></p>
 </div>
 
@@ -111,6 +114,7 @@ async function loadAll() {
         <span class="actions">
           <button onclick="respond('${r.id}', true)">Accepter</button>
           <button onclick="respond('${r.id}', false)">Refuser</button>
+          <button onclick="blockUser('${r.from_user_id}', '${r.from_username}')" style="color:var(--danger)">Bloquer</button>
         </span>`;
       incoming.appendChild(row);
     });
@@ -128,14 +132,42 @@ async function loadAll() {
       row.className = "row";
       row.innerHTML = `
         <span class="name" id="name-${c.id}">${nickname || c.username} ${nickname ? `<span class="sub" style="font-size:11px">(@${c.username})</span>` : ""}</span>
-        <span class="actions"><button data-id="${c.id}" data-username="${c.username}" class="nickBtn" style="font-size:11px">Surnom</button></span>`;
+        <span class="actions">
+          <button data-id="${c.id}" data-username="${c.username}" class="nickBtn" style="font-size:11px">Surnom</button>
+          <button onclick="blockUser('${c.id}', '${c.username}')" style="font-size:11px;color:var(--danger)">Bloquer</button>
+        </span>`;
       list.appendChild(row);
     });
     document.querySelectorAll(".nickBtn").forEach(btn => {
       btn.addEventListener("click", () => startNicknameEdit(btn.dataset.id, btn.dataset.username));
     });
   }
+
+  const blockedBox = document.getElementById("blockedList");
+  blockedBox.innerHTML = "";
+  if (!data.blocked || data.blocked.length === 0) {
+    blockedBox.innerHTML = '<p class="sub">Personne de bloqué.</p>';
+  } else {
+    data.blocked.forEach(b => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `<span class="name">${b.username}</span>
+        <span class="actions"><button onclick="unblockUser('${b.id}')" style="font-size:11px">Débloquer</button></span>`;
+      blockedBox.appendChild(row);
+    });
+  }
 }
+
+async function blockUser(userId, username) {
+  await sb.from("blocked_users").insert({ user_id: (await sb.auth.getUser()).data.user.id, blocked_id: userId });
+  loadAll();
+}
+async function unblockUser(userId) {
+  await sb.from("blocked_users").delete().eq("user_id", (await sb.auth.getUser()).data.user.id).eq("blocked_id", userId);
+  loadAll();
+}
+window.blockUser = blockUser;
+window.unblockUser = unblockUser;
 
 function startNicknameEdit(contactId, username) {
   const nickKey = `kreyptedd_nickname_${contactId}`;

@@ -40,6 +40,7 @@
       <a href="contacts.html" style="font-size:12px">Contacts</a>
       <a href="settings.html" style="font-size:12px;margin-left:8px">Paramètres</a>
       <a href="#" id="myProfileLink" style="font-size:12px;margin-left:8px">Mon profil</a>
+      <a href="a-propos.html" style="font-size:12px;margin-left:8px">À propos</a>
     </span>
   </div>
   <div id="convoList"></div>
@@ -493,9 +494,33 @@ document.getElementById("mediaBtn").addEventListener("click", () => {
   if (currentConvo.encrypted) return showInfo("L'envoi de médias n'est pas encore supporté dans les conversations chiffrées.");
   document.getElementById("mediaInput").click();
 });
+// Retire les métadonnées (EXIF, GPS, modèle d'appareil...) des images en
+// les redessinant sur un canvas avant l'envoi. Pas de solution simple côté
+// client pour les vidéos — leurs métadonnées ne sont pas nettoyées ici.
+async function stripImageMetadata(file) {
+  if (!file.type.startsWith("image/")) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(url);
+        resolve(blob ? new File([blob], file.name, { type: blob.type }) : file);
+      }, file.type === "image/png" ? "image/png" : "image/jpeg", 0.92);
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
 document.getElementById("mediaInput").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file || !currentConvo) return;
+  const rawFile = e.target.files[0];
+  if (!rawFile || !currentConvo) return;
+  const file = await stripImageMetadata(rawFile);
   const { data: { user } } = await sb.auth.getUser();
   const formData = new FormData();
   formData.append("file", file);

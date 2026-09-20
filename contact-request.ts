@@ -27,6 +27,14 @@ Deno.serve(async (req) => {
   if (!target) return jsonResponse({ error: "Code introuvable." }, 404);
   if (target.id === fromUser) return jsonResponse({ error: "Tu ne peux pas t'ajouter toi-même." }, 400);
 
+  const { data: blockRows } = await supabase
+    .from("blocked_users")
+    .select("user_id, blocked_id")
+    .or(`and(user_id.eq.${fromUser},blocked_id.eq.${target.id}),and(user_id.eq.${target.id},blocked_id.eq.${fromUser})`);
+  if (blockRows && blockRows.length > 0) {
+    return jsonResponse({ error: "Impossible d'envoyer cette demande." }, 403);
+  }
+
   const { error } = await supabase.from("contact_requests").insert({ from_user: fromUser, to_user: target.id });
   if (error) return jsonResponse({ error: "Demande déjà envoyée ou existante." }, 409);
 
