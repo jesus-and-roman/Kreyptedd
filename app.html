@@ -57,7 +57,8 @@
   <div class="topbar">
     <span id="convoTitle">Sélectionne une conversation</span>
     <span>
-      <button class="linkbtn" id="deleteMenuBtn">Options de suppression</button>
+      <button class="linkbtn" id="callBtn" style="display:none">Appel</button>
+      <button class="linkbtn" id="deleteMenuBtn" style="margin-left:10px">Options de suppression</button>
     </span>
   </div>
   <div class="thread" id="thread"></div>
@@ -130,6 +131,24 @@
   <div class="modal">
     <p id="infoMessage"></p>
     <button id="infoOkBtn">OK</button>
+  </div>
+</div>
+
+<!-- Modal Appel -->
+<div class="modal-bg" id="callModal" style="display:none">
+  <div class="modal" style="width:min(520px,90vw);padding:16px">
+    <div style="position:relative;background:#000;border-radius:4px;overflow:hidden;aspect-ratio:4/3">
+      <img id="callRemoteImg" style="width:100%;height:100%;object-fit:cover;display:block">
+      <div id="callNoImageYet" class="sub" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">En attente de l'image de l'autre personne...</div>
+      <video id="callLocalVideo" autoplay muted playsinline style="position:absolute;bottom:8px;right:8px;width:90px;height:68px;object-fit:cover;border-radius:3px;border:1px solid var(--border)"></video>
+      <div id="callCaptions" style="position:absolute;left:8px;bottom:8px;max-width:75%;display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input type="text" id="callCaptionInput" placeholder="Écrire un texte (pas de voix en appel)..." style="flex:1">
+      <button id="callSendCaptionBtn" style="width:auto;margin:0">Envoyer</button>
+    </div>
+    <button id="callHangupBtn" class="ghost" style="margin-top:10px;border-color:var(--danger);color:var(--danger)">Raccrocher</button>
+    <canvas id="callCaptureCanvas" width="320" height="240" style="display:none"></canvas>
   </div>
 </div>
 
