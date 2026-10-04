@@ -138,6 +138,7 @@
 "Modify"="Изменить"="Modificar"="Modifier"="Bearbeiten"
 "encrypted"="зашифровано"="cifrado"="chiffré"="verschlüsselt"
 "see on gofile.io"="смотреть на gofile.io"="ver en gofile.io"="voir sur gofile.io"="auf gofile.io ansehen"
+#-CHAT
 "head"="голова"="cabeza"="tête"="kopf"
 "face"="лицо"="cara"="visage"="gesicht"
 "eye"="глаз"="ojo"="oeil"="auge"
@@ -651,7 +652,6 @@
 "I hope"="надеюсь"="espero"="j'espère"="ich hoffe"
 "I love you"="я тебя люблю"="te amo"="je t'aime"="ich liebe dich"
 "have a good day"="хорошего дня"="que tengas un buen día"="bonne journée"="schönen tag noch"
-#-CHAT
 "hello"="привет"="hola"="bonjour"="hallo"
 "hi"="привет"="hola"="salut"="hallo"
 "thanks"="спасибо"="gracias"="merci"="danke"
